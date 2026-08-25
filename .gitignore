@@ -3,3 +3,4 @@ out/
 dist/
 *.log
 .worktrees/
+.superpowers/
