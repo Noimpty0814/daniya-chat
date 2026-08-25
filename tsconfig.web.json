@@ -1,0 +1,8 @@
+{
+  "compilerOptions": {
+    "composite": true, "jsx": "react-jsx", "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "target": "ES2022", "strict": true, "moduleResolution": "bundler", "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": ["src/renderer/**/*", "src/shared/**/*", "src/preload/index.d.ts"]
+}
