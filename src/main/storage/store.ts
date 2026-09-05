@@ -12,14 +12,30 @@ export class Store {
 
   constructor(private dir: string) {
     fs.mkdirSync(path.join(dir, 'conversations'), { recursive: true })
-    try {
-      this.meta = JSON.parse(fs.readFileSync(this.metaPath, 'utf8')).conversations
-    } catch { this.meta = [] }
+    this.meta = this.loadMeta()
   }
 
   private get metaPath(): string { return path.join(this.dir, META_FILE) }
   private convPath(id: string): string { return path.join(this.dir, 'conversations', id + '.json') }
-  private saveMeta(): void { fs.writeFileSync(this.metaPath, JSON.stringify({ version: 1, conversations: this.meta }, null, 2)) }
+
+  private loadMeta(): ConversationMeta[] {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(this.metaPath, 'utf8'))
+      if (!Array.isArray(parsed.conversations)) throw new Error('损坏的元数据文件：conversations 不是数组')
+      return parsed.conversations
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'ENOENT') return [] // 首次运行
+      // 文件存在但已损坏：改名备份保留现场，以空列表启动（不抛异常）
+      try { fs.renameSync(this.metaPath, this.metaPath + '.bak') } catch { /* 备份失败不阻断启动 */ }
+      return []
+    }
+  }
+
+  private saveMeta(): void {
+    const tmp = this.metaPath + '.tmp'
+    fs.writeFileSync(tmp, JSON.stringify({ version: 1, conversations: this.meta }, null, 2))
+    fs.renameSync(tmp, this.metaPath)
+  }
 
   private loadMessages(id: string): ChatMessage[] {
     if (!this.cache.has(id)) {

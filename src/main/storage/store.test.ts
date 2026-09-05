@@ -74,4 +74,15 @@ describe('Store', () => {
     expect(hits[0].snippet).toContain('DeepSeek')
     expect(store.search('不存在的词xyz')).toHaveLength(0)
   })
+
+  it('损坏的 index.json：不抛错、空列表启动、原文件备份为 .bak', () => {
+    const corrupt = '{{{ 这不是合法 JSON'
+    fs.writeFileSync(path.join(dir, 'index.json'), corrupt)
+    const s = new Store(dir)
+    expect(s.listConversations()).toEqual([])
+    const bakPath = path.join(dir, 'index.json.bak')
+    expect(fs.existsSync(bakPath)).toBe(true)
+    expect(fs.readFileSync(bakPath, 'utf8')).toBe(corrupt)
+    expect(fs.existsSync(path.join(dir, 'index.json'))).toBe(false)
+  })
 })
