@@ -13,7 +13,7 @@ describe('chatStore reducer', () => {
   it('初始状态为空聊天视图', () => {
     expect(initialState).toEqual({
       view: 'chat', conversations: [], activeId: null, messages: [],
-      streaming: null, error: null, searchQuery: '', searchHits: null
+      streaming: null, error: null, errorRetry: null, searchQuery: '', searchHits: null
     })
   })
 
@@ -141,6 +141,52 @@ describe('chatStore reducer', () => {
   it('streamEvent error 缺省错误文案为 未知错误', () => {
     const s = reducer(initialState, { type: 'streamEvent', e: { requestId: 'r1', type: 'error' } })
     expect(s.error).toBe('未知错误')
+  })
+
+  it('streamEvent error 携带 retry 载荷时同时设置 error 与 errorRetry', () => {
+    const s = reducer(initialState, {
+      type: 'streamEvent',
+      e: { requestId: '__none__', type: 'error', error: '请先在设置中填写 API Key' },
+      retry: { content: '你好' }
+    })
+    expect(s.error).toBe('请先在设置中填写 API Key')
+    expect(s.errorRetry).toEqual({ content: '你好' })
+  })
+
+  it('streamEvent error 无载荷时 errorRetry 为 null', () => {
+    let s: State = reducer(initialState, { type: 'startStream', requestId: 'r1' })
+    s = reducer(s, { type: 'streamEvent', e: { requestId: 'r1', type: 'error', error: '网络错误' } })
+    expect(s.error).toBe('网络错误')
+    expect(s.errorRetry).toBeNull()
+  })
+
+  it('startStream 清空 errorRetry', () => {
+    const base: State = { ...initialState, errorRetry: { content: 'hi' } }
+    expect(reducer(base, { type: 'startStream', requestId: 'r1' }).errorRetry).toBeNull()
+  })
+
+  it('select 清空 errorRetry', () => {
+    const base: State = { ...initialState, errorRetry: { content: 'hi' } }
+    expect(reducer(base, { type: 'select', id: 'a', messages: [] }).errorRetry).toBeNull()
+  })
+
+  it('newConversation 清空 errorRetry', () => {
+    const base: State = { ...initialState, errorRetry: { content: 'hi' } }
+    expect(reducer(base, { type: 'newConversation', meta: conv('b') }).errorRetry).toBeNull()
+  })
+
+  it('streamEvent done 清空 errorRetry', () => {
+    let s: State = reducer({ ...initialState, errorRetry: { content: 'hi' } }, { type: 'startStream', requestId: 'r1' })
+    s = reducer(s, { type: 'streamEvent', e: { requestId: 'r1', type: 'done', message: msg('a1', '回复', 'assistant') } })
+    expect(s.streaming).toBeNull()
+    expect(s.errorRetry).toBeNull()
+  })
+
+  it('clearError 清除错误与 errorRetry', () => {
+    const base: State = { ...initialState, error: 'x', errorRetry: { content: 'hi' } }
+    const s = reducer(base, { type: 'clearError' })
+    expect(s.error).toBeNull()
+    expect(s.errorRetry).toBeNull()
   })
 
   it('clearError 清除错误', () => {

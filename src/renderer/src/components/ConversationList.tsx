@@ -57,7 +57,10 @@ export function ConversationList(props: {
                 <input autoFocus value={editText}
                   onChange={e => setEditText(e.target.value)}
                   onBlur={() => finishEdit(c.id)}
-                  onKeyDown={e => { if (e.key === 'Enter') finishEdit(c.id); if (e.key === 'Escape') setEditingId(null) }} />
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') finishEdit(c.id)
+                    if (e.key === 'Escape') { e.stopPropagation(); setEditingId(null) }
+                  }} />
               ) : (
                 <span className="conv-title" onDoubleClick={() => { setEditingId(c.id); setEditText(c.title) }}>{c.title}</span>
               )}
