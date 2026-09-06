@@ -142,7 +142,7 @@ if ($hook -eq [IntPtr]::Zero) { Append-Event @{ type='error'; error='hook instal
 
 function Send-PetKeys([int[]]$Mods, [int]$Key) {
   $hwnd = Get-PetHwnd
-  if ($hwnd -eq [IntPtr]::Zero) { return }
+  if ($hwnd -eq [IntPtr]::Zero) { Append-Event @{ type='error'; error='pet-window-not-found' }; return }
   [PetHook]::ShowWindow($hwnd, 5) | Out-Null          # SW_SHOW
   [PetHook]::SetForegroundWindow($hwnd) | Out-Null
   Start-Sleep -Milliseconds 100
