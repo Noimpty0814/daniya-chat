@@ -23,14 +23,22 @@ export function SettingsPage({ onBack }: { onBack: () => void }): React.JSX.Elem
 
   const set = (patch: Partial<AppSettingsView>): void => setForm({ ...form, ...patch })
   const save = async (): Promise<void> => {
-    await window.api.saveSettings(form)
-    if (apiKey) { await window.api.setApiKey(apiKey); setApiKey('') }
-    setSaved('已保存')
-    window.setTimeout(() => setSaved(''), 2000)
+    try {
+      await window.api.saveSettings(form)
+      if (apiKey) { await window.api.setApiKey(apiKey); setApiKey('') }
+      setSaved('已保存')
+      window.setTimeout(() => setSaved(''), 2000)
+    } catch (e) {
+      setSaved('保存失败：' + (e instanceof Error ? e.message : String(e)))
+    }
   }
   const test = async (): Promise<void> => {
-    const r = await window.api.testConnection()
-    setTestMsg(r.message)
+    try {
+      const r = await window.api.testConnection()
+      setTestMsg(r.message)
+    } catch (e) {
+      setTestMsg('测试失败：' + (e instanceof Error ? e.message : String(e)))
+    }
   }
 
   return (
