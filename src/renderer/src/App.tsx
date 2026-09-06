@@ -34,9 +34,9 @@ export default function App(): React.JSX.Element {
     return () => { disposed = true; offStream(); window.removeEventListener('keydown', onKey) }
   }, [select])
 
-  const send = useCallback(async (content: string) => {
+  const send = useCallback(async (content: string, images: string[]) => {
     if (!state.activeId) return
-    const r = await window.api.startReply({ conversationId: state.activeId, content })
+    const r = await window.api.startReply({ conversationId: state.activeId, content, images })
     if (!r.ok) {
       // 修复②：send 失败路径不落 user 消息，把本次 content 存入 error 的 retry 载荷供重试使用
       dispatch({ type: 'streamEvent', e: { requestId: '__none__', type: 'error', error: r.error }, retry: { content } })
@@ -101,7 +101,7 @@ export default function App(): React.JSX.Element {
             <MessageArea messages={state.messages} streaming={state.streaming} error={state.error}
               onRetry={retry} onDismissError={() => dispatch({ type: 'clearError' })} />
             <Composer streaming={!!state.streaming}
-              onSend={content => void send(content)}
+              onSend={(content, images) => void send(content, images)}
               onStop={() => { if (state.streaming) void window.api.stopReply(state.streaming.requestId) }} />
           </>
         ) : (

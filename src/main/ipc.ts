@@ -6,6 +6,7 @@ import { streamChat, ApiError, type ChatTurn } from './deepseek/client'
 import type { DeepSeekConfig } from './deepseek/client'
 import type { Emotion } from './deepseek/emotion'
 import { loadSettings, saveSettings, toView, setApiKey, applyView, type AppSettings } from './settings'
+import { capturePrimaryScreen } from './screenshot'
 import type { PetCoordinator } from './pet/coordinator'
 
 interface StreamHandle { abort: AbortController; conversationId: string }
@@ -117,7 +118,10 @@ export function registerIpc(opts: RegisterIpcOpts): void {
       return { ok: false, message: '网络错误，无法连接到 Base URL' }
     }
   })
-  ipcMain.handle('screen:capture', () => { throw new Error('Task 10 实现') })
+  ipcMain.handle('screen:capture', async (): Promise<{ ok: boolean; dataUrl?: string; error?: string }> => {
+    try { return { ok: true, dataUrl: await capturePrimaryScreen() } }
+    catch (e) { return { ok: false, error: e instanceof Error ? e.message : '截屏失败' } }
+  })
   ipcMain.handle('shell:openExternal', (_e, p: { url: string }) => { if (/^https?:\/\//.test(p.url)) return shell.openExternal(p.url) })
   ipcMain.handle('window:hide', (e) => { BrowserWindow.fromWebContents(e.sender)?.hide() })
   ipcMain.handle('pet:status', () => pet().status())

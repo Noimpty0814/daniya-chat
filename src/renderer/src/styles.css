@@ -89,3 +89,9 @@ button { font-family: inherit; cursor: pointer; }
 .guide a { color: #b9a3ff; }
 .emotion-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 16px; }
 .emotion-grid input { display: inline-block; width: 42px; margin-left: 8px; padding: 4px 6px; text-align: center; border-radius: 6px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); }
+.shot-previews { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
+.shot-preview { position: relative; }
+.shot-preview img { max-width: 180px; max-height: 120px; border-radius: 8px; border: 1px solid var(--border); }
+.shot-remove { position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; border-radius: 50%; border: 0; background: var(--danger); color: #fff; line-height: 1; }
+.shot-btn { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 7px 14px; font-size: 13px; }
+.shot-btn:hover { border-color: var(--accent); }
