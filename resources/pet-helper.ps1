@@ -15,8 +15,12 @@ function Append-Event($obj) {
 }
 
 function Get-PetHwnd {
-  $p = Get-Process -Name $ProcName -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
-  if ($p) { $p.Refresh(); return $p.MainWindowHandle }
+  # MainWindowHandle 实测是 2x2 隐形辅助窗口，改为枚举该进程全部顶层可见窗口取面积最大者
+  $procs = Get-Process -Name $ProcName -ErrorAction SilentlyContinue
+  foreach ($p in $procs) {
+    $h = [PetHook]::GetBestHwnd($p.Id)
+    if ($h -ne [IntPtr]::Zero) { return $h }
+  }
   return [IntPtr]::Zero
 }
 
@@ -41,10 +45,37 @@ public class PetHook {
   [DllImport("kernel32.dll")] public static extern bool CloseHandle(IntPtr h);
   [DllImport("advapi32.dll", SetLastError=true)] public static extern bool OpenProcessToken(IntPtr h, uint access, out IntPtr token);
   [DllImport("advapi32.dll", SetLastError=true)] public static extern bool GetTokenInformation(IntPtr TokenHandle, int TokenInformationClass, out uint TokenInformation, uint TokenInformationLength, out uint ReturnLength);
+  [DllImport("user32.dll")] public static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out int lpdwProcessId);
+  [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hWnd);
+  public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
 
   public static IntPtr TargetHwnd = IntPtr.Zero;
   public static string EventsPath = "";
   public static long LastClickTick = 0;
+  public static EnumWindowsProc enumProc = null; // 保持委托引用防 GC
+
+  // 枚举 targetPid 的所有顶层可见窗口，取宽高均 >=50 且面积最大者（MainWindowHandle 实测为 2x2 隐形辅助窗口，不可用）
+  public static IntPtr GetBestHwnd(int targetPid) {
+    IntPtr best = IntPtr.Zero;
+    long bestArea = 0;
+    enumProc = delegate(IntPtr hWnd, IntPtr lParam) {
+      try {
+        int pid;
+        GetWindowThreadProcessId(hWnd, out pid);
+        if (pid != targetPid || !IsWindowVisible(hWnd)) return true;
+        RECT r;
+        if (!GetWindowRect(hWnd, out r)) return true;
+        int w = r.Right - r.Left, h = r.Bottom - r.Top;
+        if (w < 50 || h < 50) return true;
+        long area = (long)w * (long)h;
+        if (area > bestArea) { bestArea = area; best = hWnd; }
+      } catch { }
+      return true;
+    };
+    EnumWindows(enumProc, IntPtr.Zero);
+    return best;
+  }
 
   public static IntPtr MouseCallback(int nCode, IntPtr wParam, IntPtr lParam) {
     try {
