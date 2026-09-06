@@ -1,11 +1,11 @@
-import { ipcMain, BrowserWindow, type IpcMainInvokeEvent } from 'electron'
+import { ipcMain, BrowserWindow, shell, type IpcMainInvokeEvent } from 'electron'
 import { randomUUID } from 'node:crypto'
 import type { Store } from './storage/store'
-import type { ChatMessage, StreamEventMsg, StartReplyPayload, StartReplyResult } from '../shared/types'
+import type { AppSettingsView, ChatMessage, StreamEventMsg, StartReplyPayload, StartReplyResult } from '../shared/types'
 import { streamChat, ApiError, type ChatTurn } from './deepseek/client'
 import type { DeepSeekConfig } from './deepseek/client'
 import type { Emotion } from './deepseek/emotion'
-import { loadSettings, saveSettings, toView, type AppSettings } from './settings'
+import { loadSettings, saveSettings, toView, setApiKey, applyView, type AppSettings } from './settings'
 import type { PetCoordinator } from './pet/coordinator'
 
 interface StreamHandle { abort: AbortController; conversationId: string }
@@ -96,14 +96,29 @@ export function registerIpc(opts: RegisterIpcOpts): void {
   ipcMain.handle('chat:stopReply', (_e, p: { requestId: string }) => { streams.get(p.requestId)?.abort.abort() })
 
   ipcMain.handle('settings:get', () => toView(loadSettings(settingsFile)))
-  ipcMain.handle('settings:save', (_e, v: import('../shared/types').AppSettingsView) => {
-    const cur = loadSettings(settingsFile)
-    const next: AppSettings = { ...cur, ...v, pet: { ...cur.pet, ...v.pet }, emotionKeys: v.emotionKeys }
+  ipcMain.handle('settings:save', (_e, v: AppSettingsView) => {
+    const next = applyView(loadSettings(settingsFile), v)
     saveSettings(settingsFile, next)
     opts.onSettingsChanged?.(next)
   })
-  ipcMain.handle('settings:setApiKey', () => { throw new Error('Task 9 实现') })
+  ipcMain.handle('settings:setApiKey', (_e, p: { key: string }) => { setApiKey(settingsFile, p.key ?? '') })
+  ipcMain.handle('settings:testConnection', async () => {
+    const s = loadSettings(settingsFile)
+    const cfg = getConfig(s)
+    if (!cfg) return { ok: false, message: '请先填写 API Key' }
+    try {
+      const res = await fetch(cfg.baseUrl.replace(/\/+$/, '') + '/models', {
+        headers: { Authorization: `Bearer ${cfg.apiKey}` }
+      })
+      return res.ok
+        ? { ok: true, message: '连接成功，API Key 有效' }
+        : { ok: false, message: `连接失败 (HTTP ${res.status})，请检查 Key 与 Base URL` }
+    } catch {
+      return { ok: false, message: '网络错误，无法连接到 Base URL' }
+    }
+  })
   ipcMain.handle('screen:capture', () => { throw new Error('Task 10 实现') })
+  ipcMain.handle('shell:openExternal', (_e, p: { url: string }) => { if (/^https?:\/\//.test(p.url)) return shell.openExternal(p.url) })
   ipcMain.handle('window:hide', (e) => { BrowserWindow.fromWebContents(e.sender)?.hide() })
   ipcMain.handle('pet:status', () => pet().status())
 }

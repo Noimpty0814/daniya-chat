@@ -1,4 +1,5 @@
 import fs from 'node:fs'
+import { safeStorage } from 'electron'
 import { SYSTEM_PROMPT } from './deepseek/client'
 import { DEFAULT_EMOTION_KEYS } from './pet/keys'
 
@@ -41,4 +42,21 @@ export function toView(s: AppSettings): import('../shared/types').AppSettingsVie
     systemPrompt: s.systemPrompt, pet: { ...s.pet },
     emotionKeys: { ...s.emotionKeys }, hasApiKey: !!s.apiKeyEncrypted
   }
+}
+
+export function setApiKey(file: string, key: string): AppSettings {
+  const s = loadSettings(file)
+  s.apiKeyEncrypted = key ? safeStorage.encryptString(key).toString('base64') : null
+  saveSettings(file, s)
+  return s
+}
+
+export function getApiKey(s: AppSettings): string | null {
+  if (!s.apiKeyEncrypted) return null
+  try { return safeStorage.decryptString(Buffer.from(s.apiKeyEncrypted, 'base64')) }
+  catch { return null }
+}
+
+export function applyView(cur: AppSettings, v: import('../shared/types').AppSettingsView): AppSettings {
+  return { ...cur, baseUrl: v.baseUrl, textModel: v.textModel, visionModel: v.visionModel, systemPrompt: v.systemPrompt, pet: { ...cur.pet, ...v.pet }, emotionKeys: { ...v.emotionKeys } }
 }

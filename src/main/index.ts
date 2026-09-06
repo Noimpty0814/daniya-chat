@@ -2,7 +2,7 @@ import { app, BrowserWindow, ipcMain } from 'electron'
 import path from 'node:path'
 import { Store } from './storage/store'
 import { registerIpc } from './ipc'
-import { loadSettings, type AppSettings } from './settings'
+import { loadSettings, getApiKey, type AppSettings } from './settings'
 import { createNullPet } from './pet/coordinator'
 import type { DeepSeekConfig } from './deepseek/client'
 
@@ -21,11 +21,9 @@ function createWindow(): void {
 }
 
 function getConfig(s: AppSettings): DeepSeekConfig | null {
-  if (!s.apiKeyEncrypted) return null
-  return {
-    apiKey: 'PLACEHOLDER-TASK9',
-    baseUrl: s.baseUrl, textModel: s.textModel, visionModel: s.visionModel, systemPrompt: s.systemPrompt
-  }
+  const apiKey = getApiKey(s)
+  if (!apiKey) return null
+  return { apiKey, baseUrl: s.baseUrl, textModel: s.textModel, visionModel: s.visionModel, systemPrompt: s.systemPrompt }
 }
 
 app.whenReady().then(() => {

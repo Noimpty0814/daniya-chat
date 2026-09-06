@@ -22,6 +22,7 @@ const api: Api = {
   testConnection: () => ipcRenderer.invoke('settings:testConnection'),
   captureScreen: () => ipcRenderer.invoke('screen:capture'),
   hideWindow: () => ipcRenderer.invoke('window:hide'),
-  getPetStatus: () => ipcRenderer.invoke('pet:status')
+  getPetStatus: () => ipcRenderer.invoke('pet:status'),
+  openExternal: (url) => ipcRenderer.invoke('shell:openExternal', { url })
 }
 contextBridge.exposeInMainWorld('api', api)

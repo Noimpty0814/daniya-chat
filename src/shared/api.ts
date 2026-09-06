@@ -17,4 +17,5 @@ export interface Api {
   captureScreen(): Promise<{ ok: boolean; dataUrl?: string; error?: string }>
   hideWindow(): Promise<void>
   getPetStatus(): Promise<PetStatus>
+  openExternal(url: string): Promise<void>
 }

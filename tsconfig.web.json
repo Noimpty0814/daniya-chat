@@ -4,5 +4,5 @@
     "target": "ES2022", "strict": true, "moduleResolution": "bundler", "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["src/renderer/**/*", "src/shared/**/*", "src/preload/index.d.ts"]
+  "include": ["src/renderer/**/*", "src/shared/**/*", "src/preload/index.d.ts", "src/main/pet/keys.ts"]
 }
