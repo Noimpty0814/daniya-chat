@@ -90,7 +90,7 @@ function Test-PetElevated {
 }
 
 if ((Test-PetElevated) -and -not $selfElevated) {
-  $vbs = Join-Path $env:TEMP 'daniya-pet-elevate.vbs'
+  $vbs = (Join-Path $env:TEMP 'daniya-pet-elevate.vbs') -replace '/', '\'
   $argLine = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$PSCommandPath`" -ExeName `"$ExeName`" -Dir `"$Dir`""
   $vbsContent = "Set UAC = CreateObject(`"Shell.Application`")`nUAC.ShellExecute `"$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe`", `"$argLine`", `"`", `"runas`", 0"
   Set-Content -Path $vbs -Value $vbsContent -Encoding Default
