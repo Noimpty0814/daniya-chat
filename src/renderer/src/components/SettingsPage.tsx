@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { AppSettingsView } from '../../../shared/types'
-import { EMOTION_LABELS } from '../../../main/pet/keys'
+import { EMOTION_LABELS, isValidComboChar } from '../../../main/pet/keys'
 
 const EMOTION_ORDER = ['happy', 'sad', 'sleepy', 'dismissive', 'shy', 'blush', 'angry', 'dark', 'default', 'bubble_on', 'bubble_off']
 
@@ -104,11 +104,16 @@ export function SettingsPage({ onBack }: { onBack: () => void }): React.JSX.Elem
           <div className="emotion-grid">
             {EMOTION_ORDER.map(name => (
               <label key={name}>{EMOTION_LABELS[name] ?? name}
-                <input maxLength={1} value={form.emotionKeys[name] ?? ''}
-                  onChange={e => set({ emotionKeys: { ...form.emotionKeys, [name]: e.target.value.toUpperCase() } })} />
+                <input maxLength={1} value={form.emotionKeys[name] ?? ''} title="仅支持 A-Z、0-9 或 - = [ ] 单个字符"
+                  onChange={e => {
+                    // Task 9 minor⑦：非法字符（中文/多字符等）直接拒绝，输入保持原值；空串允许（表示不映射）
+                    const v = e.target.value.toUpperCase()
+                    if (v === '' || isValidComboChar(v)) set({ emotionKeys: { ...form.emotionKeys, [name]: v } })
+                  }} />
               </label>
             ))}
           </div>
+          <p className="field-hint">仅支持单个合法按键（A-Z、0-9、-、=、[、]），非法字符会被拒绝；留空表示该情绪不映射按键。</p>
         </section>
 
         <div className="settings-actions">

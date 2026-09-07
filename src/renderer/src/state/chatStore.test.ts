@@ -153,6 +153,15 @@ describe('chatStore reducer', () => {
     expect(s.errorRetry).toEqual({ content: '你好' })
   })
 
+  it('streamEvent error 载荷含 images/userVisible 时原样透传（重试补气泡与跳过落库判据）', () => {
+    const s = reducer(initialState, {
+      type: 'streamEvent',
+      e: { requestId: '__none__', type: 'error', error: '请先在设置中填写 API Key' },
+      retry: { content: '你好', images: ['data:image/png;base64,x'], userVisible: false }
+    })
+    expect(s.errorRetry).toEqual({ content: '你好', images: ['data:image/png;base64,x'], userVisible: false })
+  })
+
   it('streamEvent error 无载荷时 errorRetry 为 null', () => {
     let s: State = reducer(initialState, { type: 'startStream', requestId: 'r1' })
     s = reducer(s, { type: 'streamEvent', e: { requestId: 'r1', type: 'error', error: '网络错误' } })

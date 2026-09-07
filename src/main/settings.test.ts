@@ -66,4 +66,14 @@ describe('applyView', () => {
     expect(next.pet.exePath).toBe(cur.pet.exePath)
     expect(next.emotionKeys).toEqual({ happy: 'X' })
   })
+
+  it('applyView 剔除非法情绪键（中文/多字符），单字符统一大写，空串保留（Task 9 minor⑦）', () => {
+    const cur: AppSettings = { ...DEFAULT_SETTINGS }
+    const v: AppSettingsView = {
+      ...toView(cur),
+      emotionKeys: { happy: '啊', sad: 'i', sleepy: 'AB', dismissive: '', default: '1' }
+    }
+    const next = applyView(cur, v)
+    expect(next.emotionKeys).toEqual({ sad: 'I', dismissive: '', default: '1' })
+  })
 })

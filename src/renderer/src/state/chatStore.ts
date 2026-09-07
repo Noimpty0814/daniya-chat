@@ -5,7 +5,16 @@ export type View = 'chat' | 'settings'
 export interface Streaming { requestId: string; text: string }
 
 /** 发送失败时随错误保存的重试载荷（修复②：retry 优先用它重发，而非找最后一条 user 消息） */
-export interface RetryPayload { content: string; images?: string[] }
+export interface RetryPayload {
+  content: string
+  images?: string[]
+  /**
+   * 该载荷对应的 user 气泡是否已在界面且已落库：
+   * false=首次失败发生在主进程落库前（无 Key/并发流），重试成功后需补气泡（Task 8⑦）；
+   * true=消息已在库（流错误重试或回退自 state 最后一条 user 消息），重试时主进程跳过落库（R23）且不补气泡
+   */
+  userVisible?: boolean
+}
 
 export interface State {
   view: View

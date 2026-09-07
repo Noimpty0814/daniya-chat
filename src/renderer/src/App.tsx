@@ -41,7 +41,8 @@ export default function App(): React.JSX.Element {
     const r = await window.api.startReply({ conversationId: state.activeId, content, images })
     if (!r.ok) {
       // 修复②：send 失败路径不落 user 消息，把本次 content 存入 error 的 retry 载荷供重试使用
-      dispatch({ type: 'streamEvent', e: { requestId: '__none__', type: 'error', error: r.error }, retry: { content } })
+      // R26：载荷保留 images（带图消息重试不丢图）；userVisible=false 表示气泡未上屏（Task 8⑦）
+      dispatch({ type: 'streamEvent', e: { requestId: '__none__', type: 'error', error: r.error }, retry: { content, images, userVisible: false } })
       return
     }
     if (r.requestId && r.userMessage) {
@@ -56,13 +57,19 @@ export default function App(): React.JSX.Element {
     const last = [...state.messages].reverse().find(m => m.role === 'user')
     const p = state.errorRetry ?? (last ? { content: last.content, images: last.images?.map(i => i.dataUrl) } : null)
     if (!p || !p.content) return
+    // 气泡是否已在界面/已落库：载荷存在按其标记；无载荷回退自 state 最后一条 user 消息，必然已上屏已落库
+    const userVisible = state.errorRetry ? state.errorRetry.userVisible === true : true
     void window.api.startReply({
-      conversationId: state.activeId, content: p.content, images: p.images
+      conversationId: state.activeId, content: p.content, images: p.images,
+      // R23：气泡已在库时跳过主进程落库，避免重试导致 user 消息重复
+      skipUserAppend: userVisible
     }).then(r => {
       if (!r.ok) {
-        // 重试再次失败时同样携带载荷，保证可继续重试同一内容
-        if (r.error) dispatch({ type: 'streamEvent', e: { requestId: '__none__', type: 'error', error: r.error }, retry: p })
+        // 重试再次失败时同样携带载荷，保证可继续重试同一内容（userVisible 标记随载荷传递）
+        if (r.error) dispatch({ type: 'streamEvent', e: { requestId: '__none__', type: 'error', error: r.error }, retry: { ...p, userVisible } })
       } else if (r.requestId) {
+        // Task 8⑦：首次失败发生在主进程落库前（气泡未上屏）时，重试成功后用主进程返回的 userMessage 补气泡
+        if (r.userMessage && !userVisible) dispatch({ type: 'appendUser', message: r.userMessage })
         dispatch({ type: 'startStream', requestId: r.requestId })
       }
     })

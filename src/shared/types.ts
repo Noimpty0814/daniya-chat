@@ -28,6 +28,12 @@ export interface StreamEventMsg {
   error?: string
   aborted?: boolean
 }
-export interface StartReplyPayload { conversationId: string; content: string; images?: string[] }
+export interface StartReplyPayload {
+  conversationId: string
+  content: string
+  images?: string[]
+  /** R23：流错误重试时该 user 消息已在库中，主进程跳过再次落库（仍构造并返回 userMessage） */
+  skipUserAppend?: boolean
+}
 export interface StartReplyResult { ok: boolean; error?: string; requestId?: string; userMessage?: ChatMessage }
 export interface PetStatus { helperRunning: boolean; connected: boolean; petWindowFound: boolean }

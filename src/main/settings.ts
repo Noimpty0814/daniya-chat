@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import { safeStorage } from 'electron'
 import { DEFAULT_PERSONA } from './deepseek/client'
-import { DEFAULT_EMOTION_KEYS } from './pet/keys'
+import { DEFAULT_EMOTION_KEYS, isValidComboChar } from './pet/keys'
 
 export interface AppSettings {
   apiKeyEncrypted: string | null
@@ -58,5 +58,17 @@ export function getApiKey(s: AppSettings): string | null {
 }
 
 export function applyView(cur: AppSettings, v: import('../shared/types').AppSettingsView): AppSettings {
-  return { ...cur, baseUrl: v.baseUrl, textModel: v.textModel, visionModel: v.visionModel, systemPrompt: v.systemPrompt, pet: { ...cur.pet, ...v.pet }, emotionKeys: { ...v.emotionKeys } }
+  return { ...cur, baseUrl: v.baseUrl, textModel: v.textModel, visionModel: v.visionModel, systemPrompt: v.systemPrompt, pet: { ...cur.pet, ...v.pet }, emotionKeys: sanitizeEmotionKeys(v.emotionKeys) }
+}
+
+/** Task 9 minor⑦：非法键（中文/多字符等）在落盘前剔除；空串保留（表示不映射）；单字符统一大写 */
+function sanitizeEmotionKeys(v: Record<string, string>): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const [name, ch] of Object.entries(v)) {
+    if (typeof ch !== 'string') continue
+    if (ch === '') { out[name] = ''; continue }
+    const up = ch.toUpperCase()
+    if (isValidComboChar(up)) out[name] = up
+  }
+  return out
 }

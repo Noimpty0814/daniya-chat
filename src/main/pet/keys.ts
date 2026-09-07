@@ -10,6 +10,12 @@ VK['-'] = 189; VK['='] = 187; VK['['] = 219; VK[']'] = 221
 
 export const VK_MENU = 18 // Alt
 
+/** 单个合法组合键字符（A-Z / 0-9 / - = [ ]）——设置页编辑与 applyView 落盘前的前置校验；comboFor 的 VK 查找是最后防线 */
+export function isValidComboChar(c: string): boolean {
+  if (!c || c.length !== 1) return false
+  return VK[c.toUpperCase()] !== undefined
+}
+
 export function comboFor(mapping: Record<string, string>, name: string): { mods: number[]; key: number } | null {
   const letter = mapping[name]
   if (!letter) return null

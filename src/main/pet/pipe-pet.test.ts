@@ -313,6 +313,21 @@ describe('cmd.json 原子写（Task 11 minor①）', () => {
   })
 })
 
+describe('setMapping 实时生效（Task 13 Step 4：设置页保存后 mapping 立即用于组合键）', () => {
+  it('改映射后同一情绪发出新的按键码', async () => {
+    petExists()
+    const pet = setup()
+    pet.start()
+    resolveProbe('not-elevated')
+    const cmdPath = path.join(dirs[0], 'cmd.json')
+    pet.setMapping({ happy: 'O' })
+    pet.emotion('happy')
+    await vi.advanceTimersByTimeAsync(90)
+    expect(JSON.parse(fs.readFileSync(cmdPath, 'utf8'))).toEqual({ cmd: 'keys', mods: [18], key: 79 })   // O，而非默认的 I(73)
+    await stopPet(pet)
+  })
+})
+
 describe('R29：pet-window-not-found 错误重试与反馈', () => {
   it('首次失败重发一次 keys，再失败回调 onError（渲染层错误条文案）', async () => {
     petExists()

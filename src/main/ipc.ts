@@ -50,8 +50,11 @@ export function registerIpc(opts: RegisterIpcOpts): void {
       images: p.images?.map(u => ({ id: randomUUID(), dataUrl: u })),
       createdAt: Date.now()
     }
-    store.appendMessage(p.conversationId, userMessage)
-    store.autoTitle(p.conversationId)
+    // R23：流错误后的重试复用已在库中的 user 消息，跳过落库避免重复（userMessage 仍返回供渲染层补气泡判断）
+    if (!p.skipUserAppend) {
+      store.appendMessage(p.conversationId, userMessage)
+      store.autoTitle(p.conversationId)
+    }
 
     const requestId = randomUUID()
     const history = store.getMessages(p.conversationId).slice(-MAX_CONTEXT).map(toTurn)
