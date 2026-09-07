@@ -167,6 +167,102 @@ describe('createPipePet 启动模式（R27）', () => {
   })
 })
 
+describe('重启配额上限（Important 修复：心跳重启计入配额，稳定连接 60s 后才归零）', () => {
+  it('心跳超时重启计入配额：直启一直未连接最多重启 3 次后放弃（不再无限重拉）', async () => {
+    petExists()
+    const pet = setup()
+    pet.start()
+    resolveProbe('not-elevated')          // t=0：初始 probe+direct（初始启动不计配额）
+    expect(h.spawn).toHaveBeenCalledTimes(2)
+    await vi.advanceTimersByTimeAsync(20000)   // t=20s 心跳：未连接 >15s → 重启 1（restarts=1）
+    expect(h.spawn).toHaveBeenCalledTimes(3)   // 新探针
+    resolveProbe('not-elevated')
+    expect(h.spawn).toHaveBeenCalledTimes(4)   // 新助手
+    await vi.advanceTimersByTimeAsync(20000)   // t=40s → 重启 2（restarts=2）
+    expect(h.spawn).toHaveBeenCalledTimes(5)
+    resolveProbe('not-elevated')
+    expect(h.spawn).toHaveBeenCalledTimes(6)
+    await vi.advanceTimersByTimeAsync(20000)   // t=60s → 重启 3（restarts=3，配额耗尽）
+    expect(h.spawn).toHaveBeenCalledTimes(7)
+    resolveProbe('not-elevated')
+    expect(h.spawn).toHaveBeenCalledTimes(8)
+    await vi.advanceTimersByTimeAsync(20000)   // t=80s：配额耗尽 → 放弃，不再 spawn
+    expect(h.spawn).toHaveBeenCalledTimes(8)
+    expect(pet.status()).toEqual({ helperRunning: false, connected: false, petWindowFound: false })
+    await stopPet(pet)
+  })
+
+  it('ready 后立即崩溃不重置配额：崩溃-重连循环最多重启 3 次', async () => {
+    petExists()
+    const pet = setup()
+    pet.start()
+    resolveProbe('not-elevated')
+    const events = path.join(dirs[0], 'events.jsonl')
+    for (let i = 0; i < 4; i++) {
+      fs.appendFileSync(events, '{"type":"ready"}\n')
+      await vi.advanceTimersByTimeAsync(350)   // poll 读到 ready（connected）
+      const direct = h.spawn.mock.results.at(-1)!.value as FakeChild
+      direct.emit('exit', 0)                   // 连接后立即崩溃
+      if (i < 3) resolveProbe('not-elevated')  // restarts=1,2,3
+    }
+    // 初始 probe+direct 2 次 + 3 次重启各 probe+direct → 共 8 次；第 4 次崩溃不再重启
+    expect(h.spawn).toHaveBeenCalledTimes(8)
+    await stopPet(pet)
+  })
+
+  it('配额耗尽后短暂连接（<60s）不重置配额，再次崩溃不再重启', async () => {
+    petExists()
+    const pet = setup()
+    pet.start()
+    resolveProbe('not-elevated')
+    for (let i = 0; i < 3; i++) {              // 连续 3 次崩溃耗尽配额（restarts=3）
+      const direct = h.spawn.mock.results.at(-1)!.value as FakeChild
+      direct.emit('exit', 0)
+      resolveProbe('not-elevated')
+    }
+    expect(h.spawn).toHaveBeenCalledTimes(8)
+    const events = path.join(dirs[0], 'events.jsonl')
+    fs.appendFileSync(events, '{"type":"ready"}\n')
+    await vi.advanceTimersByTimeAsync(350)
+    for (let i = 0; i < 3; i++) {              // 保持连接 30s（<60s 稳定窗口），pong 防心跳误杀
+      fs.appendFileSync(events, '{"type":"pong"}\n')
+      await vi.advanceTimersByTimeAsync(10000)
+    }
+    const direct = h.spawn.mock.results.at(-1)!.value as FakeChild
+    direct.emit('exit', 0)                     // 崩溃：配额未归零 → 不再重启
+    expect(h.spawn).toHaveBeenCalledTimes(8)
+    expect(pet.status().helperRunning).toBe(false)
+    await stopPet(pet)
+  })
+
+  it('持续稳定连接超过 60s 后配额归零，再次崩溃允许重启', async () => {
+    petExists()
+    const pet = setup()
+    pet.start()
+    resolveProbe('not-elevated')
+    for (let i = 0; i < 3; i++) {              // 耗尽配额（restarts=3）
+      const direct = h.spawn.mock.results.at(-1)!.value as FakeChild
+      direct.emit('exit', 0)
+      resolveProbe('not-elevated')
+    }
+    expect(h.spawn).toHaveBeenCalledTimes(8)
+    const events = path.join(dirs[0], 'events.jsonl')
+    fs.appendFileSync(events, '{"type":"ready"}\n')
+    await vi.advanceTimersByTimeAsync(350)
+    for (let i = 0; i < 7; i++) {              // 稳定连接 70s（超过 60s 稳定窗口）
+      fs.appendFileSync(events, '{"type":"pong"}\n')
+      await vi.advanceTimersByTimeAsync(10000)
+    }
+    const direct = h.spawn.mock.results.at(-1)!.value as FakeChild
+    direct.emit('exit', 0)                     // 崩溃：配额已归零 → 允许重启
+    expect(h.spawn).toHaveBeenCalledTimes(9)   // 新探针
+    resolveProbe('not-elevated')
+    expect(h.spawn).toHaveBeenCalledTimes(10)  // 新助手
+    expect(pet.status().helperRunning).toBe(true)
+    await stopPet(pet)
+  })
+})
+
 describe('events.jsonl 增量解析（Task 11 minor②）', () => {
   it('ready/pet-click/window/stopped 触发回调与状态，损坏行跳过不中断', async () => {
     const pet = setup()

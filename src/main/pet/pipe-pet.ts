@@ -38,6 +38,7 @@ export function createPipePet(opts: PipePetOpts): PetCoordinator {
   let flushTimer: ReturnType<typeof setInterval> | null = null
   let offset = 0
   let connected = false
+  let connectedSince = 0
   let lastPong = 0
   let helperStartAt = 0
   let restarts = 0
@@ -59,8 +60,8 @@ export function createPipePet(opts: PipePetOpts): PetCoordinator {
   const pending: Record<string, unknown>[] = []
 
   function appendEvent(e: PetEvent): void {
-    if (e.type === 'ready' || e.type === 'pong') { connected = true; lastPong = Date.now(); restarts = 0; uacPrompts = 0 }
-    if (e.type === 'stopped') { connected = false; petWindowFound = false; helperRunning = false }
+    if (e.type === 'ready' || e.type === 'pong') { connected = true; lastPong = Date.now(); if (connectedSince === 0) connectedSince = Date.now() }
+    if (e.type === 'stopped') { connected = false; connectedSince = 0; petWindowFound = false; helperRunning = false }
     if (e.type === 'pet-click') clickHandlers.forEach(cb => cb())
     if (e.type === 'window') { petWindowFound = !e.gone; windowRect = e.rect ?? null; windowHandlers.forEach(cb => cb(windowRect)) }
     if (e.type === 'error' && e.error === 'pet-window-not-found') {
@@ -102,6 +103,7 @@ export function createPipePet(opts: PipePetOpts): PetCoordinator {
     if (stopped || starting) return
     starting = true
     lastProbeAt = Date.now()
+    connectedSince = 0   // 任何重启都会打断稳定连接窗口，配额归零计时重新开始
     if (child) { try { child.kill() } catch { /* 已退出 */ } child = null }
     if (!probePetExists()) {
       starting = false
@@ -140,6 +142,7 @@ export function createPipePet(opts: PipePetOpts): PetCoordinator {
           if (child !== c) return
           child = null
           connected = false
+          connectedSince = 0
           helperRunning = false
           if (!stopped && restarts < 3) { restarts++; startHelper() }
         })
@@ -211,8 +214,22 @@ export function createPipePet(opts: PipePetOpts): PetCoordinator {
         }
         // 提权模式：UAC 确认期间包装进程存活，等待用户点"是"，避免重复弹窗
         if (mode === 'elevated' && child) return
+        // 稳定连接超过 60s 才归零配额：ready 瞬间归零会让崩溃-重连循环绕过重启上限
+        if (connected && connectedSince > 0 && Date.now() - connectedSince > 60000) {
+          restarts = 0
+          uacPrompts = 0
+        }
         if ((!connected && Date.now() - helperStartAt > 15000) || (connected && Date.now() - lastPong > 15000)) {
           if (mode === 'elevated' && uacPrompts >= 2) { helperRunning = false; return } // 避免反复弹 UAC
+          if (restarts >= 3) {
+            // 直启侧同等级护栏：配额耗尽后放弃，不再无限重拉
+            helperRunning = false
+            connected = false
+            connectedSince = 0
+            if (child) { try { child.kill() } catch { /* 已退出 */ } child = null }
+            return
+          }
+          restarts++
           startHelper()
         } else {
           sendCmd({ cmd: 'ping' })
