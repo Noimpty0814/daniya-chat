@@ -10,6 +10,7 @@ export interface Api {
   startReply(p: StartReplyPayload): Promise<StartReplyResult>
   stopReply(requestId: string): Promise<void>
   onStream(cb: (e: StreamEventMsg) => void): () => void
+  onPetError(cb: (message: string) => void): () => void
   getSettings(): Promise<AppSettingsView>
   saveSettings(s: AppSettingsView): Promise<void>
   setApiKey(key: string): Promise<void>

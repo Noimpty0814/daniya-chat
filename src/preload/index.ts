@@ -16,6 +16,11 @@ const api: Api = {
     ipcRenderer.on('chat:stream', h)
     return () => ipcRenderer.removeListener('chat:stream', h)
   },
+  onPetError: (cb) => {
+    const h = (_e: unknown, message: string): void => cb(message)
+    ipcRenderer.on('pet:error', h)
+    return () => ipcRenderer.removeListener('pet:error', h)
+  },
   getSettings: () => ipcRenderer.invoke('settings:get'),
   saveSettings: (s) => ipcRenderer.invoke('settings:save', s),
   setApiKey: (key) => ipcRenderer.invoke('settings:setApiKey', { key }),

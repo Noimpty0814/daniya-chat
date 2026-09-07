@@ -29,9 +29,11 @@ export default function App(): React.JSX.Element {
         })
       }
     })
+    // 桌宠联动错误（如"桌宠窗口未找到"）走既有错误条
+    const offPetError = window.api.onPetError(message => dispatch({ type: 'petError', message }))
     const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape') void window.api.hideWindow() }
     window.addEventListener('keydown', onKey)
-    return () => { disposed = true; offStream(); window.removeEventListener('keydown', onKey) }
+    return () => { disposed = true; offStream(); offPetError(); window.removeEventListener('keydown', onKey) }
   }, [select])
 
   const send = useCallback(async (content: string, images: string[]) => {

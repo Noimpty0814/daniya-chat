@@ -199,4 +199,11 @@ describe('chatStore reducer', () => {
     expect(s.searchQuery).toBe('关键词')
     expect(s.searchHits).toEqual([])
   })
+
+  it('petError 直接设置错误（不依赖 streaming 状态）', () => {
+    let s: State = reducer(initialState, { type: 'startStream', requestId: 'r1' })
+    s = reducer(s, { type: 'petError', message: '桌宠窗口未找到' })
+    expect(s.error).toBe('桌宠窗口未找到')
+    expect(s.streaming).toEqual({ requestId: 'r1', text: '' })
+  })
 })

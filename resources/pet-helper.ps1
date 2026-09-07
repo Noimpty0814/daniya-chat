@@ -1,6 +1,7 @@
 ﻿param(
   [string]$ExeName = 'Bongo Cat Mver.exe',
-  [string]$Dir = (Join-Path $env:TEMP 'daniya-pet')
+  [string]$Dir = (Join-Path $env:TEMP 'daniya-pet'),
+  [switch]$CheckElevation
 )
 $ErrorActionPreference = 'Stop'
 $ProcName = $ExeName -replace '\.exe$', ''
@@ -99,8 +100,7 @@ public class PetHook {
 }
 "@
 
-# ---- 提权检测与自举 ----
-$selfElevated = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+# ---- 提权检测 ----
 function Test-PetElevated {
   $p = Get-Process -Name $ProcName -ErrorAction SilentlyContinue | Select-Object -First 1
   if (-not $p) { return $false }
@@ -120,13 +120,11 @@ function Test-PetElevated {
   } catch { return $false }
 }
 
-if ((Test-PetElevated) -and -not $selfElevated) {
-  $vbs = (Join-Path $env:TEMP 'daniya-pet-elevate.vbs') -replace '/', '\'
-  $argLine = "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$PSCommandPath`" -ExeName `"$ExeName`" -Dir `"$Dir`""
-  $vbsContent = "Set UAC = CreateObject(`"Shell.Application`")`nUAC.ShellExecute `"$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe`", `"$argLine`", `"`", `"runas`", 0"
-  Set-Content -Path $vbs -Value $vbsContent -Encoding Default
-  & wscript.exe $vbs
-  Remove-Item $vbs -ErrorAction SilentlyContinue
+# ---- 提权检测模式（R27：由主进程调用决定启动方式，VBS 自举段已退役）----
+if ($CheckElevation) {
+  $p = Get-Process -Name $ProcName -ErrorAction SilentlyContinue | Select-Object -First 1
+  if (-not $p) { Write-Output 'missing'; exit 0 }
+  if (Test-PetElevated) { Write-Output 'elevated' } else { Write-Output 'not-elevated' }
   exit 0
 }
 

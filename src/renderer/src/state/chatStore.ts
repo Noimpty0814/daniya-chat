@@ -29,6 +29,7 @@ export type Action =
   | { type: 'appendUser'; message: ChatMessage }
   | { type: 'startStream'; requestId: string }
   | { type: 'streamEvent'; e: StreamEventMsg; retry?: RetryPayload }
+  | { type: 'petError'; message: string }
   | { type: 'clearError' }
   | { type: 'setSearch'; query: string; hits: SearchHit[] | null }
 
@@ -71,6 +72,8 @@ export function reducer(state: State, a: Action): State {
       }
       return state
     }
+    case 'petError':
+      return { ...state, error: a.message }
     case 'clearError':
       return { ...state, error: null, errorRetry: null }
     case 'setSearch':
