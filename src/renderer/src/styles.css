@@ -81,6 +81,9 @@ button { font-family: inherit; cursor: pointer; }
 .settings-body label { display: block; font-size: 13px; color: var(--text-dim); margin-bottom: 10px; }
 .settings-body label.checkbox { color: var(--text); }
 .settings-body input[type='text'], .settings-body input[type='password'] { display: block; width: 100%; margin-top: 4px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); outline: none; }
+.settings-body textarea { display: block; width: 100%; margin-top: 4px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); outline: none; resize: vertical; font-family: inherit; font-size: 13px; line-height: 1.6; }
+.settings-body textarea:focus { border-color: var(--accent); }
+.field-hint { margin: 2px 0 0; color: var(--text-dim); font-size: 12px; }
 .settings-actions { display: flex; align-items: center; gap: 12px; margin-top: 8px; }
 .settings-actions button { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 7px 18px; }
 .settings-actions button.primary { background: var(--accent); border: 0; color: #fff; }

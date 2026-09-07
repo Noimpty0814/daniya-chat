@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { loadSettings, saveSettings, toView, DEFAULT_SETTINGS, applyView, type AppSettings } from './settings'
+import { DEFAULT_PERSONA } from './deepseek/client'
 import type { AppSettingsView } from '../shared/types'
 
 let dir: string
@@ -38,6 +39,11 @@ describe('settings', () => {
     const v = toView({ ...DEFAULT_SETTINGS, apiKeyEncrypted: 'xxx' })
     expect(v.hasApiKey).toBe(true)
     expect('apiKeyEncrypted' in v).toBe(false)
+  })
+
+  it('默认 systemPrompt 为达妮娅人设卡文本（表情契约由 streamChat 拼接，不在默认值内）', () => {
+    expect(DEFAULT_SETTINGS.systemPrompt).toBe(DEFAULT_PERSONA)
+    expect(DEFAULT_SETTINGS.systemPrompt).not.toContain('{EMO:')
   })
 })
 

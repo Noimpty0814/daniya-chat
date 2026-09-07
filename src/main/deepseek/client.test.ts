@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { streamChat, ApiError, SYSTEM_PROMPT, type DeepSeekConfig } from './client'
+import { streamChat, ApiError, DEFAULT_PERSONA, EMOTION_CONTRACT, type DeepSeekConfig } from './client'
 
 const cfg: DeepSeekConfig = {
   apiKey: 'sk-test', baseUrl: 'https://api.deepseek.com',
   textModel: 'deepseek-chat', visionModel: 'deepseek-v4-flash-vision-exp',
-  systemPrompt: SYSTEM_PROMPT
+  systemPrompt: DEFAULT_PERSONA
 }
 
 function sseResponse(lines: string[], status = 200): Response {
@@ -32,7 +32,7 @@ describe('streamChat', () => {
       const body = JSON.parse(String(init.body))
       expect(body.model).toBe('deepseek-chat')
       expect(body.stream).toBe(true)
-      expect(body.messages[0]).toEqual({ role: 'system', content: SYSTEM_PROMPT })
+      expect(body.messages[0]).toEqual({ role: 'system', content: DEFAULT_PERSONA + '\n\n' + EMOTION_CONTRACT })
       expect(body.messages[1]).toEqual({ role: 'user', content: '你好' })
       return sseResponse([
         'data: {"choices":[{"delta":{"content":"{EMO:"}}]}\n\n',
@@ -81,5 +81,31 @@ describe('streamChat', () => {
     )
     expect(err).toBeInstanceOf(ApiError)
     expect((err as ApiError).status).toBe(400)
+  })
+
+  it('人设与表情契约拼接：system 消息 = cfg.systemPrompt + 空行 + EMOTION_CONTRACT（契约在后，与人设内容无关）', async () => {
+    const customCfg: DeepSeekConfig = { ...cfg, systemPrompt: '自定义人设A' }
+    const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
+      const body = JSON.parse(String(init.body))
+      expect(body.messages[0]).toEqual({ role: 'system', content: '自定义人设A\n\n' + EMOTION_CONTRACT })
+      expect(String(body.messages[0].content).startsWith('自定义人设A\n\n')).toBe(true)
+      expect(String(body.messages[0].content).endsWith(EMOTION_CONTRACT)).toBe(true)
+      return sseResponse(['data: {"choices":[{"delta":{"content":"好"},"finish_reason":"stop"}]}\n\n', 'data: [DONE]\n\n'])
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    const out = await collect(await streamChat(customCfg, [{ role: 'user', content: '在吗' }]))
+    expect(out.map(e => e.type)).toEqual(['delta', 'done'])
+  })
+
+  it('DEFAULT_PERSONA 为达妮娅人设文本（不含 {EMO} 规则），EMOTION_CONTRACT 为固定格式契约（含 8 种情绪与首字符规则，不含人设）', () => {
+    expect(DEFAULT_PERSONA).toContain('你是达妮娅（Daniya）')
+    expect(DEFAULT_PERSONA).not.toContain('{EMO:')
+    expect(EMOTION_CONTRACT).toContain('{EMO:xx}')
+    expect(EMOTION_CONTRACT).toContain('第一个字符')
+    expect(EMOTION_CONTRACT).toContain('简体中文')
+    for (const e of ['happy', 'sad', 'sleepy', 'dismissive', 'shy', 'blush', 'angry', 'dark']) {
+      expect(EMOTION_CONTRACT).toContain(e)
+    }
+    expect(EMOTION_CONTRACT).not.toContain('达妮娅')
   })
 })

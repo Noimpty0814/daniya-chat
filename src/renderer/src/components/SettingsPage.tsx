@@ -81,6 +81,14 @@ export function SettingsPage({ onBack }: { onBack: () => void }): React.JSX.Elem
         </section>
 
         <section>
+          <h2>人设</h2>
+          <label>人设（达妮娅是谁）
+            <textarea rows={8} value={form.systemPrompt} onChange={e => set({ systemPrompt: e.target.value })} />
+          </label>
+          <p className="field-hint">这里只写达妮娅是谁。表情规则由程序自动拼接，无需包含 {'{EMO}'} 说明。</p>
+        </section>
+
+        <section>
           <h2>桌宠联动</h2>
           <label className="checkbox"><input type="checkbox" checked={form.pet.enabled} onChange={e => set({ pet: { ...form.pet, enabled: e.target.checked } })} /> 启用桌宠联动（点击桌宠弹出聊天框、AI 情绪驱动表情）</label>
           <label>桌宠程序路径

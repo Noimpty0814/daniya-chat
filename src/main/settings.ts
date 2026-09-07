@@ -1,6 +1,6 @@
 import fs from 'node:fs'
 import { safeStorage } from 'electron'
-import { SYSTEM_PROMPT } from './deepseek/client'
+import { DEFAULT_PERSONA } from './deepseek/client'
 import { DEFAULT_EMOTION_KEYS } from './pet/keys'
 
 export interface AppSettings {
@@ -18,7 +18,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   baseUrl: 'https://api.deepseek.com',
   textModel: 'deepseek-chat',
   visionModel: 'deepseek-v4-flash-vision-exp',
-  systemPrompt: SYSTEM_PROMPT,
+  systemPrompt: DEFAULT_PERSONA,
   pet: { enabled: true, exePath: 'E:\\迅雷下载\\达妮娅-带表情版\\A-达妮娅\\Bongo Cat Mver.exe', exeName: 'Bongo Cat Mver.exe' },
   emotionKeys: { ...DEFAULT_EMOTION_KEYS }
 }
