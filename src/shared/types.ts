@@ -5,6 +5,7 @@ export interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
   images?: ImagePart[]
+  files?: FileAttachment[]
   model?: string
   createdAt: number
 }
@@ -32,8 +33,11 @@ export interface StartReplyPayload {
   conversationId: string
   content: string
   images?: string[]
+  files?: FileAttachment[]
   /** R23：流错误重试时该 user 消息已在库中，主进程跳过再次落库（仍构造并返回 userMessage） */
   skipUserAppend?: boolean
 }
 export interface StartReplyResult { ok: boolean; error?: string; requestId?: string; userMessage?: ChatMessage }
 export interface PetStatus { helperRunning: boolean; connected: boolean; petWindowFound: boolean }
+
+export interface FileAttachment { name: string; path: string }
