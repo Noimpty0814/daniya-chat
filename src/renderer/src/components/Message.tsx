@@ -31,6 +31,11 @@ export function Message({ msg, streaming }: { msg: ChatMessage; streaming?: bool
           {msg.images.map(i => <img key={i.id} src={i.dataUrl} alt="截图" />)}
         </div>
       )}
+      {msg.files && msg.files.length > 0 && (
+        <div className="msg-files">
+          {msg.files.map(f => <span key={f.path} className="file-chip" title={f.path}>{f.name}</span>)}
+        </div>
+      )}
       {msg.content && (
         <div className="msg-bubble">
           <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}

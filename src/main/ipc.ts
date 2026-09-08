@@ -7,6 +7,7 @@ import type { DeepSeekConfig } from './deepseek/client'
 import type { Emotion } from './deepseek/emotion'
 import { loadSettings, saveSettings, toView, setApiKey, applyView, type AppSettings } from './settings'
 import { capturePrimaryScreen } from './screenshot'
+import { registerFiles, pickFiles, injectFilesIntoLastTurn } from './files/attach'
 import type { PetCoordinator } from './pet/coordinator'
 
 interface StreamHandle { abort: AbortController; conversationId: string }
@@ -39,7 +40,7 @@ export function registerIpc(opts: RegisterIpcOpts): void {
   ipcMain.handle('chat:search', (_e, p: { q: string }) => store.search(p.q))
 
   ipcMain.handle('chat:startReply', async (e: IpcMainInvokeEvent, p: StartReplyPayload): Promise<StartReplyResult> => {
-    if (!p.content.trim() && !(p.images && p.images.length > 0)) return { ok: false, error: '消息内容不能为空' }
+    if (!p.content.trim() && !(p.images && p.images.length > 0) && !(p.files && p.files.length > 0)) return { ok: false, error: '消息内容不能为空' }
     if ([...streams.values()].some(h => h.conversationId === p.conversationId)) return { ok: false, error: '该会话正在生成回复中' }
     const settings = loadSettings(settingsFile)
     const cfg = getConfig(settings)
@@ -48,6 +49,7 @@ export function registerIpc(opts: RegisterIpcOpts): void {
     const userMessage: ChatMessage = {
       id: randomUUID(), role: 'user', content: p.content,
       images: p.images?.map(u => ({ id: randomUUID(), dataUrl: u })),
+      files: p.files,
       createdAt: Date.now()
     }
     // R23：流错误后的重试复用已在库中的 user 消息，跳过落库避免重复（userMessage 仍返回供渲染层补气泡判断）
@@ -58,6 +60,7 @@ export function registerIpc(opts: RegisterIpcOpts): void {
 
     const requestId = randomUUID()
     const history = store.getMessages(p.conversationId).slice(-MAX_CONTEXT).map(toTurn)
+    injectFilesIntoLastTurn(history, p.files ?? [])
     const ac = new AbortController()
     streams.set(requestId, { abort: ac, conversationId: p.conversationId })
     const send = (msg: Omit<StreamEventMsg, 'requestId'>) => { if (!e.sender.isDestroyed()) e.sender.send('chat:stream', { requestId, ...msg }) }
@@ -128,4 +131,7 @@ export function registerIpc(opts: RegisterIpcOpts): void {
   ipcMain.handle('shell:openExternal', (_e, p: { url: string }) => { if (/^https?:\/\//.test(p.url)) return shell.openExternal(p.url) })
   ipcMain.handle('window:hide', (e) => { BrowserWindow.fromWebContents(e.sender)?.hide() })
   ipcMain.handle('pet:status', () => pet().status())
+
+  ipcMain.handle('file:pick', () => pickFiles())
+  ipcMain.handle('file:register', (_e, p: { paths?: string[] }) => registerFiles(p.paths ?? []))
 }

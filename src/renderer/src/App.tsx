@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useReducer } from 'react'
+import type { FileAttachment } from '../../shared/types'
 import { initialState, reducer } from './state/chatStore'
 import { ConversationList } from './components/ConversationList'
 import { MessageArea } from './components/MessageArea'
@@ -36,13 +37,13 @@ export default function App(): React.JSX.Element {
     return () => { disposed = true; offStream(); offPetError(); window.removeEventListener('keydown', onKey) }
   }, [select])
 
-  const send = useCallback(async (content: string, images: string[]) => {
+  const send = useCallback(async (content: string, images: string[], files: FileAttachment[]) => {
     if (!state.activeId) return
-    const r = await window.api.startReply({ conversationId: state.activeId, content, images })
+    const r = await window.api.startReply({ conversationId: state.activeId, content, images, files })
     if (!r.ok) {
       // 修复②：send 失败路径不落 user 消息，把本次 content 存入 error 的 retry 载荷供重试使用
-      // R26：载荷保留 images（带图消息重试不丢图）；userVisible=false 表示气泡未上屏（Task 8⑦）
-      dispatch({ type: 'streamEvent', e: { requestId: '__none__', type: 'error', error: r.error }, retry: { content, images, userVisible: false } })
+      // R26：载荷保留 images/files（带图/带文件消息重试不丢）；userVisible=false 表示气泡未上屏（Task 8⑦）
+      dispatch({ type: 'streamEvent', e: { requestId: '__none__', type: 'error', error: r.error }, retry: { content, images, files, userVisible: false } })
       return
     }
     if (r.requestId && r.userMessage) {
@@ -55,12 +56,12 @@ export default function App(): React.JSX.Element {
     if (!state.activeId) return
     // 修复②：优先使用 error 动作携带的 retry 载荷；无载荷时回退现有行为（找最后一条 user 消息）
     const last = [...state.messages].reverse().find(m => m.role === 'user')
-    const p = state.errorRetry ?? (last ? { content: last.content, images: last.images?.map(i => i.dataUrl) } : null)
-    if (!p || !p.content) return
+    const p = state.errorRetry ?? (last ? { content: last.content, images: last.images?.map(i => i.dataUrl), files: last.files } : null)
+    if (!p || (!p.content && !(p.images && p.images.length > 0) && !(p.files && p.files.length > 0))) return
     // 气泡是否已在界面/已落库：载荷存在按其标记；无载荷回退自 state 最后一条 user 消息，必然已上屏已落库
     const userVisible = state.errorRetry ? state.errorRetry.userVisible === true : true
     void window.api.startReply({
-      conversationId: state.activeId, content: p.content, images: p.images,
+      conversationId: state.activeId, content: p.content, images: p.images, files: p.files,
       // R23：气泡已在库时跳过主进程落库，避免重试导致 user 消息重复
       skipUserAppend: userVisible
     }).then(r => {
@@ -110,7 +111,7 @@ export default function App(): React.JSX.Element {
             <MessageArea messages={state.messages} streaming={state.streaming} error={state.error}
               onRetry={retry} onDismissError={() => dispatch({ type: 'clearError' })} />
             <Composer streaming={!!state.streaming}
-              onSend={(content, images) => void send(content, images)}
+              onSend={(content, images, files) => void send(content, images, files)}
               onStop={() => { if (state.streaming) void window.api.stopReply(state.streaming.requestId) }} />
           </>
         ) : (

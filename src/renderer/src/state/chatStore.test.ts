@@ -162,6 +162,16 @@ describe('chatStore reducer', () => {
     expect(s.errorRetry).toEqual({ content: '你好', images: ['data:image/png;base64,x'], userVisible: false })
   })
 
+  it('error 事件的 retry 载荷透传 files 字段', () => {
+    const s = reducer(initialState, { type: 'startStream', requestId: 'r1' })
+    const next = reducer(s, {
+      type: 'streamEvent',
+      e: { requestId: 'r1', type: 'error', error: '网络错误' },
+      retry: { content: 'x', files: [{ name: 'a.txt', path: 'C:/a.txt' }], userVisible: false }
+    })
+    expect(next.errorRetry).toEqual({ content: 'x', files: [{ name: 'a.txt', path: 'C:/a.txt' }], userVisible: false })
+  })
+
   it('streamEvent error 无载荷时 errorRetry 为 null', () => {
     let s: State = reducer(initialState, { type: 'startStream', requestId: 'r1' })
     s = reducer(s, { type: 'streamEvent', e: { requestId: 'r1', type: 'error', error: '网络错误' } })

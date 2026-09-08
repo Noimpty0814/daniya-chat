@@ -98,3 +98,7 @@ button { font-family: inherit; cursor: pointer; }
 .shot-remove { position: absolute; top: -6px; right: -6px; width: 20px; height: 20px; border-radius: 50%; border: 0; background: var(--danger); color: #fff; line-height: 1; }
 .shot-btn { background: var(--panel-2); border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 7px 14px; font-size: 13px; }
 .shot-btn:hover { border-color: var(--accent); }
+
+.msg-files { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; justify-content: flex-end; }
+.file-chip { position: relative; display: inline-flex; align-items: center; gap: 6px; background: var(--accent-soft); color: #c4b5fd; border: 1px solid var(--border); border-radius: 8px; padding: 4px 8px; font-size: 12px; max-width: 220px; }
+.file-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

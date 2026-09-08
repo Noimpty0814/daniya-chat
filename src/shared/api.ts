@@ -1,4 +1,4 @@
-import type { AppSettingsView, ChatMessage, ConversationMeta, PetStatus, SearchHit, StartReplyPayload, StartReplyResult, StreamEventMsg } from './types'
+import type { AppSettingsView, ChatMessage, ConversationMeta, FileAttachment, PetStatus, SearchHit, StartReplyPayload, StartReplyResult, StreamEventMsg } from './types'
 
 export interface Api {
   listConversations(): Promise<ConversationMeta[]>
@@ -16,6 +16,8 @@ export interface Api {
   setApiKey(key: string): Promise<void>
   testConnection(): Promise<{ ok: boolean; message: string }>
   captureScreen(): Promise<{ ok: boolean; dataUrl?: string; error?: string }>
+  pickFiles(): Promise<FileAttachment[]>
+  registerFiles(paths: string[]): Promise<{ ok: boolean; files: FileAttachment[]; error?: string }>
   hideWindow(): Promise<void>
   getPetStatus(): Promise<PetStatus>
   openExternal(url: string): Promise<void>
