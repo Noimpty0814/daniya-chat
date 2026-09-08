@@ -85,4 +85,52 @@ describe('Store', () => {
     expect(fs.readFileSync(bakPath, 'utf8')).toBe(corrupt)
     expect(fs.existsSync(path.join(dir, 'index.json'))).toBe(false)
   })
+
+  it('I1 损坏的消息文件：不抛错、空消息启动、原文件备份为 .bak', () => {
+    const c = store.createConversation()
+    const corrupt = '{broken json'
+    fs.writeFileSync(path.join(dir, 'conversations', c.id + '.json'), corrupt)
+    const s = new Store(dir)
+    expect(s.getMessages(c.id)).toEqual([])
+    const bakPath = path.join(dir, 'conversations', c.id + '.json.bak')
+    expect(fs.existsSync(bakPath)).toBe(true)
+    expect(fs.readFileSync(bakPath, 'utf8')).toBe(corrupt)
+    expect(fs.existsSync(path.join(dir, 'conversations', c.id + '.json'))).toBe(false)
+  })
+
+  it('I1 消息文件形状异常（messages 是 string）：备份为 .bak 且返回数组', () => {
+    const c = store.createConversation()
+    fs.writeFileSync(path.join(dir, 'conversations', c.id + '.json'), JSON.stringify({ messages: 'string' }))
+    const s = new Store(dir)
+    const msgs = s.getMessages(c.id)
+    expect(msgs).toEqual([])
+    expect(Array.isArray(msgs)).toBe(true)
+    expect(fs.existsSync(path.join(dir, 'conversations', c.id + '.json.bak'))).toBe(true)
+  })
+
+  it('I1 消息文件形状异常（messages 是 null）：备份为 .bak 且返回数组', () => {
+    const c = store.createConversation()
+    fs.writeFileSync(path.join(dir, 'conversations', c.id + '.json'), JSON.stringify({ messages: null }))
+    const s = new Store(dir)
+    expect(s.getMessages(c.id)).toEqual([])
+    expect(Array.isArray(s.getMessages(c.id))).toBe(true)
+    expect(fs.existsSync(path.join(dir, 'conversations', c.id + '.json.bak'))).toBe(true)
+  })
+
+  it('I1 消息文件不存在（ENOENT）：返回空且不产生 .bak', () => {
+    const c = store.createConversation()
+    fs.rmSync(path.join(dir, 'conversations', c.id + '.json'))
+    const s = new Store(dir)
+    expect(s.getMessages(c.id)).toEqual([])
+    expect(fs.existsSync(path.join(dir, 'conversations', c.id + '.json.bak'))).toBe(false)
+  })
+
+  it('I1 回归：正常消息文件加载不受影响', () => {
+    const c = store.createConversation()
+    store.appendMessage(c.id, userMsg('正常消息'))
+    const s = new Store(dir)
+    expect(s.getMessages(c.id)).toHaveLength(1)
+    expect(s.getMessages(c.id)[0].content).toBe('正常消息')
+    expect(fs.existsSync(path.join(dir, 'conversations', c.id + '.json.bak'))).toBe(false)
+  })
 })

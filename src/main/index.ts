@@ -5,12 +5,15 @@ import { registerIpc } from './ipc'
 import { loadSettings, getApiKey, type AppSettings } from './settings'
 import { createNullPet, type PetCoordinator } from './pet/coordinator'
 import { createPipePet } from './pet/pipe-pet'
+import { petConfigChanged } from './pet/pet-settings'
 import type { DeepSeekConfig } from './deepseek/client'
+import type { PetSettings } from '../shared/types'
 
 let win: BrowserWindow | null = null
 let tray: Tray | null = null
 let quitting = false
 let pet: PetCoordinator = createNullPet()
+let lastPetConfig: PetSettings | null = null
 
 function helperScriptPath(): string {
   return app.isPackaged
@@ -63,14 +66,24 @@ function createTray(): void {
 }
 
 function applyPetSettings(s: AppSettings): void {
-  pet.stop()
-  pet = s.pet.enabled ? createPipePet({ exeName: s.pet.exeName, helperPath: helperScriptPath() }) : createNullPet()
   const ext = pet as PetCoordinator & {
     setMapping?(m: Record<string, string>): void
     onError?(cb: (msg: string) => void): void
   }
-  ext.setMapping?.(s.emotionKeys)
-  ext.onError?.((msg) => { win?.webContents.send('pet:error', msg) })
+  if (!petConfigChanged(lastPetConfig, s.pet)) {
+    // I2：桌宠配置未变时只更新按键映射——重建会弹 UAC 并断开联动
+    ext.setMapping?.(s.emotionKeys)
+    return
+  }
+  lastPetConfig = { ...s.pet }
+  pet.stop()
+  pet = s.pet.enabled ? createPipePet({ exeName: s.pet.exeName, helperPath: helperScriptPath() }) : createNullPet()
+  const newExt = pet as PetCoordinator & {
+    setMapping?(m: Record<string, string>): void
+    onError?(cb: (msg: string) => void): void
+  }
+  newExt.setMapping?.(s.emotionKeys)
+  newExt.onError?.((msg) => { win?.webContents.send('pet:error', msg) })
   // R28：pet-click 事件收到就忽略（托盘左键负责弹出/隐藏）
   pet.start()
 }

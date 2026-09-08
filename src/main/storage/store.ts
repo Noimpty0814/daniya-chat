@@ -39,8 +39,16 @@ export class Store {
 
   private loadMessages(id: string): ChatMessage[] {
     if (!this.cache.has(id)) {
-      try { this.cache.set(id, JSON.parse(fs.readFileSync(this.convPath(id), 'utf8')).messages ?? []) }
-      catch { this.cache.set(id, []) }
+      try {
+        const parsed = JSON.parse(fs.readFileSync(this.convPath(id), 'utf8'))
+        if (!Array.isArray(parsed.messages)) throw new Error('损坏的消息文件：messages 不是数组')
+        this.cache.set(id, parsed.messages)
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+          try { fs.renameSync(this.convPath(id), this.convPath(id) + '.bak') } catch { /* 备份失败不阻断启动 */ }
+        }
+        this.cache.set(id, [])
+      }
     }
     return this.cache.get(id)!
   }
