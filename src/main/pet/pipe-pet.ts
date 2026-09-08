@@ -1,4 +1,5 @@
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
+import { randomBytes } from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -9,17 +10,22 @@ import { comboFor } from './keys'
 
 interface Rect { x: number; y: number; w: number; h: number }
 type PetEvent =
-  | { type: 'ready' } | { type: 'pong' } | { type: 'stopped' }
-  | { type: 'pet-click'; x: number; y: number }
-  | { type: 'window'; rect?: Rect; gone?: boolean }
-  | { type: 'error'; error: string }
+  | { type: 'ready'; token?: string } | { type: 'pong'; token?: string } | { type: 'stopped'; token?: string }
+  | { type: 'pet-click'; x: number; y: number; token?: string }
+  | { type: 'window'; rect?: Rect; gone?: boolean; token?: string }
+  | { type: 'error'; error: string; token?: string }
 
 export interface PipePetOpts {
   exeName: string
   helperPath: string
   /** 事件/命令目录，默认 %TEMP%\daniya-pet；测试注入临时目录 */
   dir?: string
+  /** 会话 token（测试注入用；生产不传则每次 startHelper 随机生成） */
+  token?: string
 }
+
+/** 会话 token：本实例与助手配对。孤儿/旧版助手的事件被过滤，其命令消费权随 token 过期自动失效 */
+let sessionToken: string | null = null
 
 /** 助手运行方式：missing=桌宠进程不存在不启动；direct=普通权限直启；elevated=RunAs 提权（UAC） */
 type Mode = 'missing' | 'direct' | 'elevated'
@@ -124,10 +130,11 @@ export function createPipePet(opts: PipePetOpts): PetCoordinator {
       helperStartAt = Date.now()
       connected = false
       helperRunning = true
+      sessionToken = opts.token ?? randomBytes(8).toString('hex')   // 每次 startHelper 重新生成
       if (state === 'elevated') {
         mode = 'elevated'
         uacPrompts++
-        const inner = `-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "${opts.helperPath}" -ExeName "${opts.exeName}"`
+        const inner = `-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "${opts.helperPath}" -ExeName "${opts.exeName}" -Token "${sessionToken}"`
         const command = `Start-Process -FilePath "$env:SystemRoot\\System32\\WindowsPowerShell\\v1.0\\powershell.exe" -ArgumentList ${psSingleQuote(inner)} -Verb RunAs -WindowStyle Hidden`
         const wrapper = spawn('powershell.exe', ['-NoProfile', '-Command', command], { windowsHide: true, stdio: 'ignore' })
         wrapper.on('exit', () => { if (child === wrapper) child = null })
@@ -136,7 +143,7 @@ export function createPipePet(opts: PipePetOpts): PetCoordinator {
         mode = 'direct'
         const c = spawn('powershell.exe', [
           '-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden',
-          '-File', opts.helperPath, '-ExeName', opts.exeName
+          '-File', opts.helperPath, '-ExeName', opts.exeName, '-Token', sessionToken
         ], { detached: true, stdio: 'ignore', windowsHide: true })
         c.on('exit', () => {
           if (child !== c) return
@@ -164,7 +171,7 @@ export function createPipePet(opts: PipePetOpts): PetCoordinator {
   }
 
   function sendCmd(cmd: Record<string, unknown>): void {
-    pending.push(cmd)
+    pending.push({ ...cmd, token: sessionToken })
     flushOnce()   // 立即尝试送达（stop 时保证 shutdown 在退出前落盘）
     if (pending.length > 0 && !flushTimer) {
       flushTimer = setInterval(() => {
@@ -201,7 +208,11 @@ export function createPipePet(opts: PipePetOpts): PetCoordinator {
             offset = size
             for (const line of buf.toString('utf8').split('\n')) {
               if (!line.trim()) continue
-              try { appendEvent(JSON.parse(line) as PetEvent) } catch { /* 半行或坏行忽略 */ }
+              try {
+                const ev = JSON.parse(line) as PetEvent
+                if (ev.token !== sessionToken) continue   // 孤儿/旧版助手事件全部过滤
+                appendEvent(ev)
+              } catch { /* 半行或坏行忽略 */ }
             }
           }
         } catch { /* 事件文件暂不存在 */ }

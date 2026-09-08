@@ -32,13 +32,14 @@ type PipePetExt = PetCoordinator & {
 
 const EXE = 'Bongo Cat Mver.exe'
 const HELPER = 'C:/fake/pet-helper.ps1'
+const TOKEN = 'test-token'
 const dirs: string[] = []
 const pets: PetCoordinator[] = []
 
 function setup(): PipePetExt {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'daniya-pet-test-'))
   dirs.push(dir)
-  const pet = createPipePet({ exeName: EXE, helperPath: HELPER, dir }) as PipePetExt
+  const pet = createPipePet({ exeName: EXE, helperPath: HELPER, dir, token: TOKEN }) as PipePetExt
   pet.setMapping({ ...DEFAULT_EMOTION_KEYS })
   pets.push(pet)
   return pet
@@ -95,7 +96,7 @@ describe('createPipePet 启动模式（R27）', () => {
     expect(h.spawn).toHaveBeenCalledTimes(2)
     const [cmd, args, opts] = h.spawn.mock.calls[1]
     expect(cmd).toBe('powershell.exe')
-    expect(args).toEqual(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', HELPER, '-ExeName', EXE])
+    expect(args).toEqual(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-WindowStyle', 'Hidden', '-File', HELPER, '-ExeName', EXE, '-Token', TOKEN])
     expect(opts).toMatchObject({ detached: true, stdio: 'ignore', windowsHide: true })
     expect(pet.status()).toEqual({ helperRunning: true, connected: false, petWindowFound: false })
     await stopPet(pet)
@@ -113,6 +114,7 @@ describe('createPipePet 启动模式（R27）', () => {
     expect(command).toContain('Start-Process')
     expect(command).toContain('-Verb RunAs')
     expect(command).toContain(EXE)
+    expect(command).toContain('-Token "test-token"')
     // 包装进程退出（UAC 已触发/助手已拉起）不影响 helperRunning 判定
     const wrapper = h.spawn.mock.results[1].value as FakeChild
     wrapper.emit('exit', 0)
@@ -199,7 +201,7 @@ describe('重启配额上限（Important 修复：心跳重启计入配额，稳
     resolveProbe('not-elevated')
     const events = path.join(dirs[0], 'events.jsonl')
     for (let i = 0; i < 4; i++) {
-      fs.appendFileSync(events, '{"type":"ready"}\n')
+      fs.appendFileSync(events, '{"type":"ready","token":"test-token"}\n')
       await vi.advanceTimersByTimeAsync(350)   // poll 读到 ready（connected）
       const direct = h.spawn.mock.results.at(-1)!.value as FakeChild
       direct.emit('exit', 0)                   // 连接后立即崩溃
@@ -222,10 +224,10 @@ describe('重启配额上限（Important 修复：心跳重启计入配额，稳
     }
     expect(h.spawn).toHaveBeenCalledTimes(8)
     const events = path.join(dirs[0], 'events.jsonl')
-    fs.appendFileSync(events, '{"type":"ready"}\n')
+    fs.appendFileSync(events, '{"type":"ready","token":"test-token"}\n')
     await vi.advanceTimersByTimeAsync(350)
     for (let i = 0; i < 3; i++) {              // 保持连接 30s（<60s 稳定窗口），pong 防心跳误杀
-      fs.appendFileSync(events, '{"type":"pong"}\n')
+      fs.appendFileSync(events, '{"type":"pong","token":"test-token"}\n')
       await vi.advanceTimersByTimeAsync(10000)
     }
     const direct = h.spawn.mock.results.at(-1)!.value as FakeChild
@@ -247,10 +249,10 @@ describe('重启配额上限（Important 修复：心跳重启计入配额，稳
     }
     expect(h.spawn).toHaveBeenCalledTimes(8)
     const events = path.join(dirs[0], 'events.jsonl')
-    fs.appendFileSync(events, '{"type":"ready"}\n')
+    fs.appendFileSync(events, '{"type":"ready","token":"test-token"}\n')
     await vi.advanceTimersByTimeAsync(350)
     for (let i = 0; i < 7; i++) {              // 稳定连接 70s（超过 60s 稳定窗口）
-      fs.appendFileSync(events, '{"type":"pong"}\n')
+      fs.appendFileSync(events, '{"type":"pong","token":"test-token"}\n')
       await vi.advanceTimersByTimeAsync(10000)
     }
     const direct = h.spawn.mock.results.at(-1)!.value as FakeChild
@@ -272,7 +274,7 @@ describe('events.jsonl 增量解析（Task 11 minor②）', () => {
     pet.onWindow(windowCb)
     pet.start()
     const events = path.join(dirs[0], 'events.jsonl')
-    fs.writeFileSync(events, '{"type":"ready"}\nNOT JSON\n{"type":"pet-click","x":1,"y":2}\n{"type":"window","rect":{"x":10,"y":20,"w":30,"h":40}}\n')
+    fs.writeFileSync(events, '{"type":"ready","token":"test-token"}\nNOT JSON\n{"type":"pet-click","x":1,"y":2,"token":"test-token"}\n{"type":"window","rect":{"x":10,"y":20,"w":30,"h":40},"token":"test-token"}\n')
     await vi.advanceTimersByTimeAsync(350)
     expect(pet.status()).toEqual({ helperRunning: false, connected: true, petWindowFound: true })
     expect(clickCb).toHaveBeenCalledTimes(1)
@@ -281,7 +283,7 @@ describe('events.jsonl 增量解析（Task 11 minor②）', () => {
     fs.appendFileSync(events, '{"type":"window","rect":{"x":5')
     await vi.advanceTimersByTimeAsync(350)
     expect(windowCb).toHaveBeenCalledTimes(1)
-    fs.appendFileSync(events, ',"y":6,"w":7,"h":8}}\n{"type":"stopped"}\n')
+    fs.appendFileSync(events, ',"y":6,"w":7,"h":8},"token":"test-token"}\n{"type":"stopped","token":"test-token"}\n')
     await vi.advanceTimersByTimeAsync(350)
     expect(pet.status()).toEqual({ helperRunning: false, connected: false, petWindowFound: false })
     await stopPet(pet)
@@ -297,18 +299,18 @@ describe('cmd.json 原子写（Task 11 minor①）', () => {
     const cmdPath = path.join(dirs[0], 'cmd.json')
     pet.emotion('happy')
     await vi.advanceTimersByTimeAsync(90)
-    expect(JSON.parse(fs.readFileSync(cmdPath, 'utf8'))).toEqual({ cmd: 'keys', mods: [18], key: 73 })
+    expect(JSON.parse(fs.readFileSync(cmdPath, 'utf8'))).toEqual({ cmd: 'keys', mods: [18], key: 73, token: 'test-token' })
     expect(fs.existsSync(cmdPath + '.tmp')).toBe(false)
     // cmd.json 尚未被助手取走时，后续命令排队等待而非覆盖
     pet.emotion('sad')
     await vi.advanceTimersByTimeAsync(200)
-    expect(JSON.parse(fs.readFileSync(cmdPath, 'utf8'))).toEqual({ cmd: 'keys', mods: [18], key: 73 })
+    expect(JSON.parse(fs.readFileSync(cmdPath, 'utf8'))).toEqual({ cmd: 'keys', mods: [18], key: 73, token: 'test-token' })
     fs.rmSync(cmdPath)   // 模拟助手消费第一命令
     await vi.advanceTimersByTimeAsync(200)
-    expect(JSON.parse(fs.readFileSync(cmdPath, 'utf8'))).toEqual({ cmd: 'keys', mods: [18], key: 73 })   // 队首：关旧表情 happy
+    expect(JSON.parse(fs.readFileSync(cmdPath, 'utf8'))).toEqual({ cmd: 'keys', mods: [18], key: 73, token: 'test-token' })   // 队首：关旧表情 happy
     fs.rmSync(cmdPath)
     await vi.advanceTimersByTimeAsync(200)
-    expect(JSON.parse(fs.readFileSync(cmdPath, 'utf8'))).toEqual({ cmd: 'keys', mods: [18], key: 79 })   // 随后：开新表情 sad
+    expect(JSON.parse(fs.readFileSync(cmdPath, 'utf8'))).toEqual({ cmd: 'keys', mods: [18], key: 79, token: 'test-token' })   // 随后：开新表情 sad
     await stopPet(pet)
   })
 })
@@ -323,7 +325,7 @@ describe('setMapping 实时生效（Task 13 Step 4：设置页保存后 mapping 
     pet.setMapping({ happy: 'O' })
     pet.emotion('happy')
     await vi.advanceTimersByTimeAsync(90)
-    expect(JSON.parse(fs.readFileSync(cmdPath, 'utf8'))).toEqual({ cmd: 'keys', mods: [18], key: 79 })   // O，而非默认的 I(73)
+    expect(JSON.parse(fs.readFileSync(cmdPath, 'utf8'))).toEqual({ cmd: 'keys', mods: [18], key: 79, token: 'test-token' })   // O，而非默认的 I(73)
     await stopPet(pet)
   })
 })
@@ -340,14 +342,14 @@ describe('R29：pet-window-not-found 错误重试与反馈', () => {
     const events = path.join(dirs[0], 'events.jsonl')
     pet.emotion('happy')
     await vi.advanceTimersByTimeAsync(90)
-    expect(JSON.parse(fs.readFileSync(cmdPath, 'utf8'))).toEqual({ cmd: 'keys', mods: [18], key: 73 })
+    expect(JSON.parse(fs.readFileSync(cmdPath, 'utf8'))).toEqual({ cmd: 'keys', mods: [18], key: 73, token: 'test-token' })
     fs.rmSync(cmdPath)
-    fs.appendFileSync(events, '{"type":"error","error":"pet-window-not-found"}\n')
+    fs.appendFileSync(events, '{"type":"error","error":"pet-window-not-found","token":"test-token"}\n')
     await vi.advanceTimersByTimeAsync(420)
-    expect(JSON.parse(fs.readFileSync(cmdPath, 'utf8'))).toEqual({ cmd: 'keys', mods: [18], key: 73 })   // 已重发
+    expect(JSON.parse(fs.readFileSync(cmdPath, 'utf8'))).toEqual({ cmd: 'keys', mods: [18], key: 73, token: 'test-token' })   // 已重发
     expect(errorCb).not.toHaveBeenCalled()
     fs.rmSync(cmdPath)
-    fs.appendFileSync(events, '{"type":"error","error":"pet-window-not-found"}\n')
+    fs.appendFileSync(events, '{"type":"error","error":"pet-window-not-found","token":"test-token"}\n')
     await vi.advanceTimersByTimeAsync(420)
     expect(errorCb).toHaveBeenCalledTimes(1)
     expect(errorCb).toHaveBeenCalledWith('桌宠窗口未找到')
@@ -365,8 +367,41 @@ describe('生命周期', () => {
     pet.stop()
     expect(direct.kill).toHaveBeenCalled()
     await vi.advanceTimersByTimeAsync(90)
-    expect(JSON.parse(fs.readFileSync(path.join(dirs[0], 'cmd.json'), 'utf8'))).toEqual({ cmd: 'shutdown' })
+    expect(JSON.parse(fs.readFileSync(path.join(dirs[0], 'cmd.json'), 'utf8'))).toEqual({ cmd: 'shutdown', token: 'test-token' })
     pet.stop()   // 幂等，不抛错
     await vi.advanceTimersByTimeAsync(2000)
+  })
+})
+
+describe('B2：会话 token 孤儿进程过滤', () => {
+  it('孤儿/无 token 事件被过滤，token 匹配的 pong 才建立连接', async () => {
+    petExists()
+    const pet = setup()
+    pet.start()
+    resolveProbe('not-elevated')
+    const events = path.join(dirs[0], 'events.jsonl')
+    fs.appendFileSync(events, '{"type":"pong","token":"orphan"}\n')
+    fs.appendFileSync(events, '{"type":"ready"}\n')
+    await vi.advanceTimersByTimeAsync(350)
+    expect(pet.status().connected).toBe(false)
+    fs.appendFileSync(events, '{"type":"pong","token":"test-token"}\n')
+    await vi.advanceTimersByTimeAsync(350)
+    expect(pet.status().connected).toBe(true)
+    await stopPet(pet)
+  })
+
+  it('孤儿错误事件不触发重试/回调', async () => {
+    petExists()
+    const pet = setup()
+    const errorCb = vi.fn()
+    pet.onError(errorCb)
+    pet.start()
+    resolveProbe('not-elevated')
+    const events = path.join(dirs[0], 'events.jsonl')
+    fs.appendFileSync(events, '{"type":"error","error":"pet-window-not-found","token":"orphan"}\n')
+    await vi.advanceTimersByTimeAsync(350)
+    expect(errorCb).not.toHaveBeenCalled()
+    expect(pet.status().connected).toBe(false)
+    await stopPet(pet)
   })
 })

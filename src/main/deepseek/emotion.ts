@@ -26,6 +26,18 @@ export class EmotionParser {
       }
       return { display: '' }
     }
+    // 简写完整匹配：{<词表内>}，行为与 {EMO:xx} 一致（词表外如 {code}/{sadness} 走 ⑤ 原样透传）
+    const short = body.match(/^\{([a-z]+)\}/)
+    if (short && isEmotion(short[1])) {
+      const close = short[0].length - 1
+      const display = this.buf.slice(ws + close + 1)
+      this.buf = ''
+      this.state = 'done'
+      return { display, emotion: short[1] }
+    }
+    // 简写前缀暂扣：body 形如 {+纯小写字母（尚无闭合 }）且是某合法简写标记的严格前缀
+    const shortPrefix = body.match(/^\{[a-z]+$/)
+    if (shortPrefix && EMOTIONS.some(e => e.startsWith(shortPrefix[0].slice(1)))) return { display: '' }
     if (body.length < PREFIX.length && PREFIX.startsWith(body)) return { display: '' }
     this.state = 'done'
     const out = this.buf

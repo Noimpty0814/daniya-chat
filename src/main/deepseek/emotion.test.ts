@@ -64,4 +64,51 @@ describe('EmotionParser', () => {
     expect(r.emotion).toBe('happy')
     expect(r.final).toBe('提到 {EMO:sad} 字面量')
   })
+
+  // ---- B1：词表限定简写 {<emotion>} ----
+
+  it('简写单块：{sleepy} 剥离并触发情绪', () => {
+    const r = run(['{sleepy}好困'])
+    expect(r.emotion).toBe('sleepy')
+    expect(r.final).toBe('好困')
+  })
+
+  it('简写跨块拆分：{sl + eepy}hi', () => {
+    const r = run(['{sl', 'eepy}hi'])
+    expect(r.emotion).toBe('sleepy')
+    expect(r.final).toBe('hi')
+  })
+
+  it.each(['happy', 'sad', 'sleepy', 'dismissive', 'shy', 'blush', 'angry', 'dark'] as const)(
+    '词表简写 %s：剥离并触发情绪',
+    emotion => {
+      const r = run([`{${emotion}}ok`])
+      expect(r.emotion).toBe(emotion)
+      expect(r.final).toBe('ok')
+    }
+  )
+
+  it('词表外简写不误伤：{code} 原样透传', () => {
+    const r = run(['{code}文本'])
+    expect(r.emotion).toBeUndefined()
+    expect(r.final).toBe('{code}文本')
+  })
+
+  it('词表外长名不误伤：{sadness} 原样透传', () => {
+    const r = run(['{sadness}'])
+    expect(r.emotion).toBeUndefined()
+    expect(r.final).toBe('{sadness}')
+  })
+
+  it('流中后置简写不解析（直通）', () => {
+    const r = run(['hi {sleepy}'])
+    expect(r.emotion).toBeUndefined()
+    expect(r.final).toBe('hi {sleepy}')
+  })
+
+  it('暂扣后恢复透传：{s + ome text', () => {
+    const r = run(['{s', 'ome text'])
+    expect(r.emotion).toBeUndefined()
+    expect(r.final).toBe('{some text')
+  })
 })

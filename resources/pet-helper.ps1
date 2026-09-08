@@ -1,7 +1,8 @@
 ﻿param(
   [string]$ExeName = 'Bongo Cat Mver.exe',
   [string]$Dir = (Join-Path $env:TEMP 'daniya-pet'),
-  [switch]$CheckElevation
+  [switch]$CheckElevation,
+  [string]$Token = ''
 )
 $ErrorActionPreference = 'Stop'
 $ProcName = $ExeName -replace '\.exe$', ''
@@ -11,6 +12,7 @@ $EventsPath = Join-Path $Dir 'events.jsonl'
 $CmdPath = Join-Path $Dir 'cmd.json'
 
 function Append-Event($obj) {
+  $obj.token = $Token
   # PS5.1 的 Add-Content -Encoding UTF8 建文件时会写 BOM，破坏 JSONL 首行解析；改用 AppendAllText（UTF-8 无 BOM，与下方 C# 钩子写入一致）
   try { [System.IO.File]::AppendAllText($EventsPath, ($obj | ConvertTo-Json -Compress) + "`n") } catch { }
 }
@@ -53,6 +55,7 @@ public class PetHook {
 
   public static IntPtr TargetHwnd = IntPtr.Zero;
   public static string EventsPath = "";
+  public static string Token = "";
   public static long LastClickTick = 0;
   public static EnumWindowsProc enumProc = null; // 保持委托引用防 GC
 
@@ -88,7 +91,7 @@ public class PetHook {
             long now = DateTime.UtcNow.Ticks / TimeSpan.TicksPerMillisecond;
             if (now - LastClickTick > 800) {
               LastClickTick = now;
-              File.AppendAllText(EventsPath, "{\"type\":\"pet-click\",\"x\":" + s.pt.x + ",\"y\":" + s.pt.y + "}\n");
+              File.AppendAllText(EventsPath, "{\"type\":\"pet-click\",\"token\":\"" + Token + "\",\"x\":" + s.pt.x + ",\"y\":" + s.pt.y + "}\n");
             }
           }
         }
@@ -130,6 +133,7 @@ if ($CheckElevation) {
 
 # ---- 初始化 C# 钩子状态 ----
 [PetHook]::EventsPath = $EventsPath
+[PetHook]::Token = $Token
 [PetHook]::LastClickTick = 0
 
 Add-Type -AssemblyName System.Windows.Forms
@@ -180,6 +184,7 @@ $t2.Add_Tick({
   try {
     if (Test-Path $CmdPath) {
       $cmd = Get-Content $CmdPath -Raw -Encoding UTF8 | ConvertFrom-Json
+      if ($cmd.token -ne $Token) { return }   # 不消费其他会话的命令，也不删除（留给匹配的助手）
       Remove-Item $CmdPath -Force -ErrorAction SilentlyContinue
       switch ($cmd.cmd) {
         'ping'   { Append-Event @{ type='pong' } }
