@@ -88,7 +88,7 @@
 ### 3.4 权限与写入（`src/main/files/apply.ts` + `diff.ts`）
 
 - **可改路径 = 会话附件集 ∪ 设置页工作目录内文件**。校验：`path.resolve`；附件集用全等比较；工作目录用 `resolvedPath === workDir 或 startsWith(workDir + path.sep)`；不满足 → 拒绝（`拒绝：只能修改本轮附带或工作目录内的文件`）。
-- 提案大小上限：`content.length > 64KB` → 拒绝。
+- 提案大小上限：`content.length > 64KB` → 拒绝；**目标文件同样 ≤ 64KB**（超过拒绝——AI 无法可靠重写更大的文件，且行级 diff 需内存保护）。
 - `diff.ts`：自写行级 LCS diff（不引新依赖），输出 `{ lines: [{kind:'same'|'add'|'del', text}] }`。二进制文件在写入前再探测一次（NUL），拒绝。
 - 写入：`renameSync(原文件, 原文件 + '.bak')`（覆盖式，保留上一版）→ `writeFileSync(tmp)` + `renameSync(tmp, 原文件)`（原子写，沿用 store 惯例）。写入失败（权限/占用）→ 错误提示，不崩。
 - 提案生命周期：主进程生成 `proposalId`（randomUUID），持有 `{id, path, content, resolvedPath}` 状态表。渲染层确认 → `file:apply {id}` → 校验通过则写 + 发结果；拒绝 → `file:reject {id}` 清状态。
@@ -119,7 +119,7 @@
 
 ### 3.7 渲染层
 
-- `Composer.tsx`：附件 chips（名称+移除×）与截屏预览并列；[选文件] 按钮；拖拽：Composer 区 `onDragOver/onDrop`，`e.dataTransfer.files` 取 `.path`（Electron File.path）→ `file:register`。**上限 3 个**，超限提示。发送时 `onSend(content, images, files)`。
+- `Composer.tsx`：附件 chips（名称+移除×）与截屏预览并列；[选文件] 按钮；拖拽：Composer 区 `onDragOver/onDrop`，`e.dataTransfer.files` 取 `.path`（Electron File.path）→ `file:register`。**上限 3 个**，超限提示。发送时 `onSend(content, images, files)`。发送后 user 气泡显示文件名 chips（`Message.tsx`，数据来自落库的 `files` 元数据）。
 - `App.tsx`：send/retry 载荷带 files；`onFileProposal` 订阅 → 事件挂到当前会话消息区（提案显示在**本轮 AI 消息气泡下方**）；`file:apply`/`file:reject` 调用与状态更新。
 - `Message.tsx`（或新组件 `FileProposalPanel.tsx`）：diff 红删绿增（`<pre>` 行渲染，样式类 diff-del/diff-add）；[应用修改] [拒绝] 按钮；已应用/已拒绝/已自动应用状态条；error:'invalid-json' → "达妮娅的修改提案格式无效，已忽略（可让她重试）"。
 - 整轮 display 为空但有提案：气泡位置显示轻提示"达妮娅提议修改 <文件名>"（渲染层本地，不落库）。
