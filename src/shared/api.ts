@@ -1,4 +1,4 @@
-import type { AppSettingsView, ChatMessage, ConversationMeta, FileAttachment, PetStatus, SearchHit, StartReplyPayload, StartReplyResult, StreamEventMsg } from './types'
+import type { AppSettingsView, ChatMessage, ConversationMeta, FileAttachment, FileProposalEvent, PetStatus, SearchHit, StartReplyPayload, StartReplyResult, StreamEventMsg } from './types'
 
 export interface Api {
   listConversations(): Promise<ConversationMeta[]>
@@ -18,6 +18,10 @@ export interface Api {
   captureScreen(): Promise<{ ok: boolean; dataUrl?: string; error?: string }>
   pickFiles(): Promise<{ files: FileAttachment[]; error?: string }>
   registerFiles(paths: string[]): Promise<{ ok: boolean; files: FileAttachment[]; error?: string }>
+  pickWorkDir(): Promise<string>
+  applyProposal(id: string): Promise<{ ok: boolean; error?: string }>
+  rejectProposal(id: string): Promise<void>
+  onFileProposal(cb: (e: FileProposalEvent) => void): () => void
   getPathForFile(f: File): string
   hideWindow(): Promise<void>
   getPetStatus(): Promise<PetStatus>

@@ -102,3 +102,13 @@ button { font-family: inherit; cursor: pointer; }
 .msg-files { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; justify-content: flex-end; }
 .file-chip { position: relative; display: inline-flex; align-items: center; gap: 6px; background: var(--accent-soft); color: #c4b5fd; border: 1px solid var(--border); border-radius: 8px; padding: 4px 8px; font-size: 12px; max-width: 220px; }
 .file-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.proposal-panel { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; font-size: 13px; }
+.proposal-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; color: var(--text); margin-bottom: 8px; }
+.proposal-note { color: var(--text-dim); font-size: 12px; }
+.proposal-diff { max-height: 240px; overflow-y: auto; background: #0f0e14; border-radius: 8px; padding: 8px 10px; font-family: Consolas, 'Courier New', monospace; font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: break-word; }
+.diff-add { background: #1e3524; color: #8be3a4; }
+.diff-del { background: #3a1f28; color: #ffb3c0; }
+.proposal-actions { display: flex; gap: 8px; margin-top: 8px; }
+.proposal-actions button { background: var(--panel); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 4px 14px; font-size: 12px; }
+.proposal-actions button.apply { background: var(--accent); border: 0; color: #fff; }
+.proposal-actions button:hover { border-color: var(--accent); }

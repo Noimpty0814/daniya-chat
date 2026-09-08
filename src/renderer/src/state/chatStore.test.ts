@@ -13,7 +13,8 @@ describe('chatStore reducer', () => {
   it('初始状态为空聊天视图', () => {
     expect(initialState).toEqual({
       view: 'chat', conversations: [], activeId: null, messages: [],
-      streaming: null, error: null, errorRetry: null, searchQuery: '', searchHits: null
+      streaming: null, error: null, errorRetry: null, searchQuery: '', searchHits: null,
+      proposal: null
     })
   })
 
@@ -224,5 +225,13 @@ describe('chatStore reducer', () => {
     s = reducer(s, { type: 'petError', message: '桌宠窗口未找到' })
     expect(s.error).toBe('桌宠窗口未找到')
     expect(s.streaming).toEqual({ requestId: 'r1', text: '' })
+  })
+
+  it('fileProposal 事件：进入 proposal 状态，startStream 时清空', () => {
+    const ev = { id: 'p1', path: 'C:/a.txt', resolvedPath: 'C:/a.txt', diff: [], autoApplied: false }
+    const s1 = reducer(initialState, { type: 'fileProposal', e: ev })
+    expect(s1.proposal).toEqual(ev)
+    const s2 = reducer(s1, { type: 'startStream', requestId: 'r1' })
+    expect(s2.proposal).toBeNull()
   })
 })

@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { Api } from '../shared/api'
-import type { StreamEventMsg } from '../shared/types'
+import type { FileProposalEvent, StreamEventMsg } from '../shared/types'
 
 const api: Api = {
   listConversations: () => ipcRenderer.invoke('chat:listConversations'),
@@ -28,6 +28,14 @@ const api: Api = {
   captureScreen: () => ipcRenderer.invoke('screen:capture'),
   pickFiles: () => ipcRenderer.invoke('file:pick'),
   registerFiles: (paths) => ipcRenderer.invoke('file:register', { paths }),
+  pickWorkDir: () => ipcRenderer.invoke('file:pickDir'),
+  applyProposal: (id) => ipcRenderer.invoke('file:apply', { id }),
+  rejectProposal: (id) => ipcRenderer.invoke('file:reject', { id }),
+  onFileProposal: (cb) => {
+    const h = (_e: unknown, data: FileProposalEvent): void => cb(data)
+    ipcRenderer.on('file:proposal', h)
+    return () => ipcRenderer.removeListener('file:proposal', h)
+  },
   getPathForFile: (f) => webUtils.getPathForFile(f),
   hideWindow: () => ipcRenderer.invoke('window:hide'),
   getPetStatus: () => ipcRenderer.invoke('pet:status'),

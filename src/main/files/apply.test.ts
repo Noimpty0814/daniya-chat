@@ -19,7 +19,7 @@ describe('createProposal 权限校验', () => {
     const p = path.join(dir, 'x.txt'); write(p, 'old')
     const r = createProposal(p, 'new', { workDir: '', autoApply: false })
     expect(r.ok).toBe(false)
-    expect(r.error).toContain('拒绝')
+    if (!r.ok) expect(r.error).toContain('拒绝')
   })
 
   it('已附件文件：允许', () => {

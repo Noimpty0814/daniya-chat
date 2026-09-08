@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useReducer } from 'react'
-import type { FileAttachment } from '../../shared/types'
+import type { FileAttachment, FileProposalEvent } from '../../shared/types'
 import { initialState, reducer } from './state/chatStore'
 import { ConversationList } from './components/ConversationList'
 import { MessageArea } from './components/MessageArea'
@@ -32,9 +32,10 @@ export default function App(): React.JSX.Element {
     })
     // 桌宠联动错误（如"桌宠窗口未找到"）走既有错误条
     const offPetError = window.api.onPetError(message => dispatch({ type: 'petError', message }))
+    const offFileProposal = window.api.onFileProposal(e => dispatch({ type: 'fileProposal', e }))
     const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape') void window.api.hideWindow() }
     window.addEventListener('keydown', onKey)
-    return () => { disposed = true; offStream(); offPetError(); window.removeEventListener('keydown', onKey) }
+    return () => { disposed = true; offStream(); offPetError(); offFileProposal(); window.removeEventListener('keydown', onKey) }
   }, [select])
 
   const send = useCallback(async (content: string, images: string[], files: FileAttachment[]) => {
@@ -76,6 +77,18 @@ export default function App(): React.JSX.Element {
     })
   }, [state.errorRetry, state.messages, state.activeId])
 
+  const applyProposal = useCallback(async (id: string) => {
+    if (!state.proposal) return
+    const r = await window.api.applyProposal(id)
+    dispatch({ type: 'fileProposal', e: { ...state.proposal, status: r.ok ? 'applied' : 'apply-failed' } })
+  }, [state.proposal])
+
+  const rejectProposal = useCallback(() => {
+    if (!state.proposal) return
+    void window.api.rejectProposal(state.proposal.id)
+    dispatch({ type: 'fileProposal', e: { ...state.proposal, status: 'rejected' } })
+  }, [state.proposal])
+
   if (state.view === 'settings') {
     return <SettingsPage onBack={() => dispatch({ type: 'setView', view: 'chat' })} />
   }
@@ -109,6 +122,7 @@ export default function App(): React.JSX.Element {
         {state.activeId ? (
           <>
             <MessageArea messages={state.messages} streaming={state.streaming} error={state.error}
+              proposal={state.proposal} onApplyProposal={id => void applyProposal(id)} onRejectProposal={() => rejectProposal()}
               onRetry={retry} onDismissError={() => dispatch({ type: 'clearError' })} />
             <Composer streaming={!!state.streaming}
               onSend={(content, images, files) => void send(content, images, files)}

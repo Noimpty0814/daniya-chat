@@ -100,6 +100,22 @@ export function SettingsPage({ onBack }: { onBack: () => void }): React.JSX.Elem
         </section>
 
         <section>
+          <h2>文件</h2>
+          <label>工作目录（达妮娅可直接修改的目录；留空 = 只能修改本轮附带的文件）
+            <input value={form.file.workDir} placeholder="例如 C:\Users\lenovo\projects\xxx"
+              onChange={e => set({ file: { ...form.file, workDir: e.target.value } })} />
+          </label>
+          <div className="settings-actions">
+            <button onClick={() => {
+              void window.api.pickWorkDir().then(d => { if (d) set({ file: { ...form.file, workDir: d } }) })
+            }}>浏览…</button>
+          </div>
+          <label className="checkbox"><input type="checkbox" checked={form.file.autoApply}
+            onChange={e => set({ file: { ...form.file, autoApply: e.target.checked } })} /> 工作目录内的修改自动放行（跳过确认）</label>
+          <p className="field-hint">修改前原文件会备份为同名 .bak；只能修改文本文件（≤64KB）。</p>
+        </section>
+
+        <section>
           <h2>情绪 → 桌宠按键（Alt+该键）</h2>
           <div className="emotion-grid">
             {EMOTION_ORDER.map(name => (

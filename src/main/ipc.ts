@@ -1,13 +1,14 @@
-import { ipcMain, BrowserWindow, shell, type IpcMainInvokeEvent } from 'electron'
+import { ipcMain, BrowserWindow, shell, dialog, type IpcMainInvokeEvent } from 'electron'
 import { randomUUID } from 'node:crypto'
 import type { Store } from './storage/store'
-import type { AppSettingsView, ChatMessage, StreamEventMsg, StartReplyPayload, StartReplyResult } from '../shared/types'
+import type { AppSettingsView, ChatMessage, FileProposalEvent, StreamEventMsg, StartReplyPayload, StartReplyResult } from '../shared/types'
 import { streamChat, ApiError, type ChatTurn } from './deepseek/client'
 import type { DeepSeekConfig } from './deepseek/client'
 import type { Emotion } from './deepseek/emotion'
 import { loadSettings, saveSettings, toView, setApiKey, applyView, type AppSettings } from './settings'
 import { capturePrimaryScreen } from './screenshot'
 import { registerFiles, pickFiles, injectFilesIntoLastTurn } from './files/attach'
+import { createProposal, applyProposal, rejectProposal } from './files/apply'
 import type { PetCoordinator } from './pet/coordinator'
 
 interface StreamHandle { abort: AbortController; conversationId: string }
@@ -64,6 +65,7 @@ export function registerIpc(opts: RegisterIpcOpts): void {
     const ac = new AbortController()
     streams.set(requestId, { abort: ac, conversationId: p.conversationId })
     const send = (msg: Omit<StreamEventMsg, 'requestId'>) => { if (!e.sender.isDestroyed()) e.sender.send('chat:stream', { requestId, ...msg }) }
+    const sendFile = (f: FileProposalEvent): void => { if (!e.sender.isDestroyed()) e.sender.send('file:proposal', f) }
 
     pet().bubble(true)
     void (async () => {
@@ -75,6 +77,22 @@ export function registerIpc(opts: RegisterIpcOpts): void {
         for await (const ev of gen) {
           if (ev.type === 'delta') { full += ev.delta; send({ type: 'delta', delta: ev.delta }) }
           else if (ev.type === 'emotion') { emotion = ev.emotion; pet().emotion(emotion); send({ type: 'emotion', emotion }) }
+          else if (ev.type === 'proposal') {
+            if (ev.proposal.kind === 'invalid') {
+              sendFile({ id: '', path: '', resolvedPath: '', diff: [], autoApplied: false, error: '达妮娅的修改提案格式无效，已忽略（可让她重试）' })
+            } else {
+              const r = createProposal(ev.proposal.path, ev.proposal.content, settings.file)
+              if (!r.ok) {
+                sendFile({ id: '', path: ev.proposal.path, resolvedPath: '', diff: [], autoApplied: false, error: r.error })
+              } else {
+                sendFile(r.event)
+                if (r.event.autoApplied) {
+                  const applied = applyProposal(r.event.id)
+                  if (!applied.ok) sendFile({ ...r.event, error: '自动应用失败：' + (applied.error ?? '未知错误') })
+                }
+              }
+            }
+          }
           else if (ev.type === 'done') { modelUsed = ev.model; break }
         }
       } catch (err) {
@@ -134,4 +152,10 @@ export function registerIpc(opts: RegisterIpcOpts): void {
 
   ipcMain.handle('file:pick', () => pickFiles())
   ipcMain.handle('file:register', (_e, p: { paths?: unknown[] }) => registerFiles((p.paths ?? []).filter((x): x is string => typeof x === 'string')))
+  ipcMain.handle('file:pickDir', async () => {
+    const r = await dialog.showOpenDialog({ properties: ['openDirectory'] })
+    return r.canceled || !r.filePaths[0] ? '' : r.filePaths[0]
+  })
+  ipcMain.handle('file:apply', (_e, p: { id: string }) => applyProposal(p.id))
+  ipcMain.handle('file:reject', (_e, p: { id: string }) => { rejectProposal(p.id) })
 }

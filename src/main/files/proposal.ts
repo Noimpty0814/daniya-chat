@@ -12,6 +12,7 @@ export class FileProposalParser {
   feed(chunk: string): { display: string; proposal?: ProposalResult } {
     this.pending += chunk
     let display = ''
+    let proposal: ProposalResult | undefined
     for (;;) {
       if (!this.inFence) {
         const idx = this.findOpen()
@@ -19,7 +20,7 @@ export class FileProposalParser {
           const keep = this.holdLen(OPEN)
           display += this.pending.slice(0, keep)
           this.pending = this.pending.slice(keep)
-          return { display }
+          return { display, proposal }
         }
         display += this.pending.slice(0, idx)
         this.pending = this.pending.slice(idx + OPEN.length)
@@ -32,14 +33,14 @@ export class FileProposalParser {
           const nl = this.pending.lastIndexOf('\n')
           this.fenceLines.push(this.pending.slice(0, nl + 1))
           this.pending = this.pending.slice(nl + 1)
-          return { display }
+          return { display, proposal }
         }
         this.fenceLines.push(this.pending.slice(0, close.bodyEnd))
         this.pending = this.pending.slice(close.next)
         this.inFence = false
-        const proposal = this.parseBody(this.fenceLines.join('\n'))
+        // 继续循环处理 fence 之后的剩余文本（契约限制一次回复最多一个提案块，同块后续 fence 覆盖前者）
+        proposal = this.parseBody(this.fenceLines.join('\n'))
         this.fenceLines = []
-        return { display, proposal }
       }
     }
   }
@@ -73,15 +74,14 @@ export class FileProposalParser {
   }
 
   /**
-   * 尾部保留起点：最后一个 \n 之后的部分若以 needle 的严格前缀结尾，
-   * 则连同其前内容（整行）整体保留（防标记跨 chunk 被切开）；
-   * 返回保留区间的起点下标；无前缀时返回 pending.length（全部输出，不保留）。
+   * 尾部保留起点：最后一行若以 needle 的严格前缀结尾，说明标记可能被 chunk 切开——
+   * 连同其前内容（整个 pending）整体保留，返回 0；无前缀时返回 pending.length（全部输出）。
    */
   private holdLen(needle: string): number {
     const nl = this.pending.lastIndexOf('\n')
     const tail = this.pending.slice(nl + 1)
     for (let k = Math.min(tail.length, needle.length - 1); k >= 1; k--) {
-      if (needle.startsWith(tail.slice(tail.length - k))) return nl + 1
+      if (needle.startsWith(tail.slice(tail.length - k))) return 0
     }
     return this.pending.length
   }

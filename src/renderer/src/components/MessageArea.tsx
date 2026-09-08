@@ -1,13 +1,17 @@
-import type { ChatMessage } from '../../../shared/types'
+import type { ChatMessage, FileProposalEvent } from '../../../shared/types'
 import type { Streaming } from '../state/chatStore'
 import { Message } from './Message'
+import { FileProposalPanel } from './FileProposalPanel'
 
 export function MessageArea(props: {
   messages: ChatMessage[]
   streaming: Streaming | null
   error: string | null
+  proposal: FileProposalEvent | null
   onRetry: () => void
   onDismissError: () => void
+  onApplyProposal: (id: string) => void
+  onRejectProposal: (id: string) => void
 }): React.JSX.Element {
   return (
     <div className="messages">
@@ -22,6 +26,9 @@ export function MessageArea(props: {
           <button onClick={props.onRetry}>重试</button>
           <button onClick={props.onDismissError}>关闭</button>
         </div>
+      )}
+      {props.proposal && (
+        <FileProposalPanel ev={props.proposal} onApply={props.onApplyProposal} onReject={props.onRejectProposal} />
       )}
     </div>
   )
