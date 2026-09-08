@@ -18,6 +18,7 @@ export interface AppSettingsView {
   systemPrompt: string
   pet: PetSettings
   emotionKeys: Record<string, string>
+  file: { workDir: string; autoApply: boolean }
   hasApiKey: boolean
 }
 export interface StreamEventMsg {
@@ -41,3 +42,14 @@ export interface StartReplyResult { ok: boolean; error?: string; requestId?: str
 export interface PetStatus { helperRunning: boolean; connected: boolean; petWindowFound: boolean }
 
 export interface FileAttachment { name: string; path: string }
+export interface DiffLine { kind: 'same' | 'add' | 'del'; text: string }
+export interface FileProposalEvent {
+  id: string
+  path: string
+  resolvedPath: string
+  diff: DiffLine[]
+  autoApplied: boolean
+  error?: string
+  /** 渲染层本地状态（主进程事件不携带） */
+  status?: 'applied' | 'apply-failed' | 'rejected'
+}

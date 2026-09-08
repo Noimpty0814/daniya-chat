@@ -33,6 +33,14 @@ describe('settings', () => {
     expect(s.baseUrl).toBe('https://example.com')
     expect(s.pet).toEqual(DEFAULT_SETTINGS.pet)
     expect(s.emotionKeys.happy).toBe(DEFAULT_SETTINGS.emotionKeys.happy)
+    expect(s.file).toEqual(DEFAULT_SETTINGS.file)
+  })
+
+  it('file 子对象合并：旧存档缺 file 字段按默认，部分字段按默认补齐', () => {
+    fs.writeFileSync(file, JSON.stringify({ file: { workDir: 'C:/work' } }))
+    const s = loadSettings(file)
+    expect(s.file.workDir).toBe('C:/work')
+    expect(s.file.autoApply).toBe(false)
   })
 
   it('toView 不暴露密文，hasApiKey 反映是否已保存', () => {
@@ -75,5 +83,17 @@ describe('applyView', () => {
     }
     const next = applyView(cur, v)
     expect(next.emotionKeys).toEqual({ sad: 'I', dismissive: '', default: '1' })
+  })
+
+  it('applyView file 字段白名单：非法类型回退现值', () => {
+    const cur: AppSettings = { ...DEFAULT_SETTINGS }
+    const v: AppSettingsView = {
+      ...toView(cur),
+      file: { workDir: 'D:/proj', autoApply: true }
+    }
+    const next = applyView(cur, v)
+    expect(next.file).toEqual({ workDir: 'D:/proj', autoApply: true })
+    const bad = applyView(cur, { ...v, file: { workDir: 123 as unknown as string, autoApply: 'yes' as unknown as boolean } })
+    expect(bad.file).toEqual(cur.file)
   })
 })

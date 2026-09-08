@@ -11,6 +11,7 @@ export interface AppSettings {
   systemPrompt: string
   pet: { enabled: boolean; exePath: string; exeName: string }
   emotionKeys: Record<string, string>
+  file: { workDir: string; autoApply: boolean }
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -20,13 +21,14 @@ export const DEFAULT_SETTINGS: AppSettings = {
   visionModel: 'deepseek-v4-flash-vision-exp',
   systemPrompt: DEFAULT_PERSONA,
   pet: { enabled: true, exePath: 'E:\\迅雷下载\\达妮娅-带表情版\\A-达妮娅\\Bongo Cat Mver.exe', exeName: 'Bongo Cat Mver.exe' },
-  emotionKeys: { ...DEFAULT_EMOTION_KEYS }
+  emotionKeys: { ...DEFAULT_EMOTION_KEYS },
+  file: { workDir: '', autoApply: false }
 }
 
 export function loadSettings(file: string): AppSettings {
   try {
     const raw = JSON.parse(fs.readFileSync(file, 'utf8'))
-    return { ...DEFAULT_SETTINGS, ...raw, pet: { ...DEFAULT_SETTINGS.pet, ...(raw.pet ?? {}) }, emotionKeys: { ...DEFAULT_EMOTION_KEYS, ...(raw.emotionKeys ?? {}) } }
+    return { ...DEFAULT_SETTINGS, ...raw, pet: { ...DEFAULT_SETTINGS.pet, ...(raw.pet ?? {}) }, emotionKeys: { ...DEFAULT_EMOTION_KEYS, ...(raw.emotionKeys ?? {}) }, file: { ...DEFAULT_SETTINGS.file, ...(raw.file ?? {}) } }
   } catch { return { ...DEFAULT_SETTINGS } }
 }
 
@@ -40,6 +42,7 @@ export function toView(s: AppSettings): import('../shared/types').AppSettingsVie
   return {
     baseUrl: s.baseUrl, textModel: s.textModel, visionModel: s.visionModel,
     systemPrompt: s.systemPrompt, pet: { ...s.pet },
+    file: { ...s.file },
     emotionKeys: { ...s.emotionKeys }, hasApiKey: !!s.apiKeyEncrypted
   }
 }
@@ -58,7 +61,14 @@ export function getApiKey(s: AppSettings): string | null {
 }
 
 export function applyView(cur: AppSettings, v: import('../shared/types').AppSettingsView): AppSettings {
-  return { ...cur, baseUrl: v.baseUrl, textModel: v.textModel, visionModel: v.visionModel, systemPrompt: v.systemPrompt, pet: { ...cur.pet, ...v.pet }, emotionKeys: sanitizeEmotionKeys(v.emotionKeys) }
+  return {
+    ...cur, baseUrl: v.baseUrl, textModel: v.textModel, visionModel: v.visionModel, systemPrompt: v.systemPrompt, pet: { ...cur.pet, ...v.pet },
+    file: {
+      workDir: typeof v.file?.workDir === 'string' ? v.file.workDir : cur.file.workDir,
+      autoApply: typeof v.file?.autoApply === 'boolean' ? v.file.autoApply : cur.file.autoApply
+    },
+    emotionKeys: sanitizeEmotionKeys(v.emotionKeys)
+  }
 }
 
 /** Task 9 minor⑦：非法键（中文/多字符等）在落盘前剔除；空串保留（表示不映射）；单字符统一大写 */
