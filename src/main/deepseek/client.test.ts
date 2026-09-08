@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { streamChat, ApiError, DEFAULT_PERSONA, EMOTION_CONTRACT, type DeepSeekConfig } from './client'
+import { streamChat, ApiError, DEFAULT_PERSONA, EMOTION_CONTRACT, FILE_CONTRACT, type DeepSeekConfig } from './client'
 
 const cfg: DeepSeekConfig = {
   apiKey: 'sk-test', baseUrl: 'https://api.deepseek.com',
@@ -32,7 +32,7 @@ describe('streamChat', () => {
       const body = JSON.parse(String(init.body))
       expect(body.model).toBe('deepseek-chat')
       expect(body.stream).toBe(true)
-      expect(body.messages[0]).toEqual({ role: 'system', content: DEFAULT_PERSONA + '\n\n' + EMOTION_CONTRACT })
+      expect(body.messages[0]).toEqual({ role: 'system', content: DEFAULT_PERSONA + '\n\n' + EMOTION_CONTRACT + '\n\n' + FILE_CONTRACT })
       expect(body.messages[1]).toEqual({ role: 'user', content: '你好' })
       return sseResponse([
         'data: {"choices":[{"delta":{"content":"{EMO:"}}]}\n\n',
@@ -87,9 +87,9 @@ describe('streamChat', () => {
     const customCfg: DeepSeekConfig = { ...cfg, systemPrompt: '自定义人设A' }
     const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
       const body = JSON.parse(String(init.body))
-      expect(body.messages[0]).toEqual({ role: 'system', content: '自定义人设A\n\n' + EMOTION_CONTRACT })
+      expect(body.messages[0]).toEqual({ role: 'system', content: '自定义人设A\n\n' + EMOTION_CONTRACT + '\n\n' + FILE_CONTRACT })
       expect(String(body.messages[0].content).startsWith('自定义人设A\n\n')).toBe(true)
-      expect(String(body.messages[0].content).endsWith(EMOTION_CONTRACT)).toBe(true)
+      expect(String(body.messages[0].content).endsWith(FILE_CONTRACT)).toBe(true)
       return sseResponse(['data: {"choices":[{"delta":{"content":"好"},"finish_reason":"stop"}]}\n\n', 'data: [DONE]\n\n'])
     })
     vi.stubGlobal('fetch', fetchMock)
@@ -107,5 +107,36 @@ describe('streamChat', () => {
       expect(EMOTION_CONTRACT).toContain(e)
     }
     expect(EMOTION_CONTRACT).not.toContain('达妮娅')
+  })
+
+  it('提案 fence：从显示流剥离并产出 proposal 事件', async () => {
+    const fetchMock = vi.fn(async () => sseResponse([
+      'data: {"choices":[{"delta":{"content":"{EMO:happy}好，我改一下。\\n```dani"}}]}\n\n',
+      'data: {"choices":[{"delta":{"content":"ya-file\\n{\\"path\\": \\"C:/a.txt\\", \\"content\\": \\"新内容\\"}\\n```\\n改好了"},"finish_reason":"stop"}]}\n\n',
+      'data: [DONE]\n\n'
+    ]))
+    vi.stubGlobal('fetch', fetchMock)
+    const out = await collect(await streamChat(cfg, [{ role: 'user', content: '改一下' }]))
+    expect(out).toEqual([
+      { type: 'emotion', emotion: 'happy' },
+      { type: 'delta', delta: '好，我改一下。\n\n改好了' },
+      { type: 'proposal', proposal: { kind: 'proposal', path: 'C:/a.txt', content: '新内容' } },
+      { type: 'done', model: 'deepseek-chat' }
+    ])
+  })
+
+  it('非法提案 JSON：产出 invalid 且不落 display', async () => {
+    const fetchMock = vi.fn(async () => sseResponse([
+      'data: {"choices":[{"delta":{"content":"{EMO:happy}```daniya-file\\n坏掉的JSON\\n```\\n正文"},"finish_reason":"stop"}]}\n\n',
+      'data: [DONE]\n\n'
+    ]))
+    vi.stubGlobal('fetch', fetchMock)
+    const out = await collect(await streamChat(cfg, [{ role: 'user', content: 'hi' }]))
+    expect(out).toEqual([
+      { type: 'emotion', emotion: 'happy' },
+      { type: 'delta', delta: '\n正文' },
+      { type: 'proposal', proposal: { kind: 'invalid' } },
+      { type: 'done', model: 'deepseek-chat' }
+    ])
   })
 })

@@ -1,6 +1,7 @@
 import { parseSSE } from './stream'
 import { EmotionParser, type Emotion } from './emotion'
 import { pickModel } from './router'
+import { FileProposalParser, type ProposalResult } from '../files/proposal'
 
 export interface ChatTurn { role: 'user' | 'assistant'; content: string; images?: string[] }
 export interface DeepSeekConfig {
@@ -13,6 +14,7 @@ export interface DeepSeekConfig {
 export type StreamEvent =
   | { type: 'delta'; delta: string }
   | { type: 'emotion'; emotion: Emotion }
+  | { type: 'proposal'; proposal: ProposalResult }
   | { type: 'done'; model: string }
 
 export class ApiError extends Error {
@@ -37,10 +39,26 @@ export const EMOTION_CONTRACT = [
   '3. 全程简体中文；口语化、简短（一般 1-3 句，用户要求长内容时才展开）；像聊天发消息，不写作文、不列清单。'
 ].join('\n')
 
+export const FILE_CONTRACT = [
+  '### 文件修改提案格式（严格遵守）',
+  '需要修改文件时，不要描述修改，输出一个独立代码块，独占行：',
+  '',
+  '```daniya-file',
+  '{"path": "<绝对路径>", "content": "<修改后的完整文件内容>"}',
+  '```',
+  '',
+  '规则：',
+  '1. 只能修改本轮对话中用户附带的文件，或用户设置的工作目录内的文件',
+  '2. content 是修改后的完整文件内容',
+  '3. path 必须是绝对路径',
+  '4. 一次回复最多一个提案块',
+  '5. 其他回复内容照常输出，讲解代码可以用普通 ``` 代码块'
+].join('\n')
+
 export async function streamChat(cfg: DeepSeekConfig, turns: ChatTurn[], signal?: AbortSignal): Promise<AsyncGenerator<StreamEvent>> {
   const model = pickModel(cfg.textModel, cfg.visionModel, turns)
   const messages = [
-    { role: 'system', content: cfg.systemPrompt + '\n\n' + EMOTION_CONTRACT },
+    { role: 'system', content: cfg.systemPrompt + '\n\n' + EMOTION_CONTRACT + '\n\n' + FILE_CONTRACT },
     ...turns.map(t => t.images && t.images.length > 0
       ? { role: t.role, content: [{ type: 'text', text: t.content }, ...t.images.map(u => ({ type: 'image_url', image_url: { url: u } }))] }
       : { role: t.role, content: t.content })
@@ -58,15 +76,26 @@ export async function streamChat(cfg: DeepSeekConfig, turns: ChatTurn[], signal?
   const body: ReadableStream<Uint8Array> = res.body
   return (async function* () {
     const parser = new EmotionParser()
+    const fileParser = new FileProposalParser()
     for await (const d of parseSSE(body)) {
       const { display, emotion } = parser.feed(d.delta)
       if (emotion) yield { type: 'emotion', emotion }
-      if (display) yield { type: 'delta', delta: display }
+      if (display) {
+        const r = fileParser.feed(display)
+        if (r.display) yield { type: 'delta', delta: r.display }
+        if (r.proposal) yield { type: 'proposal', proposal: r.proposal }
+      }
       if (d.finishReason) break
     }
-    const { display, emotion } = parser.end()
-    if (emotion) yield { type: 'emotion', emotion }
-    if (display) yield { type: 'delta', delta: display }
+    const end = parser.end()
+    const fEnd = fileParser.end()
+    if (end.emotion) yield { type: 'emotion', emotion: end.emotion }
+    if (end.display) {
+      const r = fileParser.feed(end.display)
+      if (r.display) yield { type: 'delta', delta: r.display }
+      if (r.proposal) yield { type: 'proposal', proposal: r.proposal }
+    }
+    if (fEnd.display) yield { type: 'delta', delta: fEnd.display }
     yield { type: 'done', model }
   })()
 }
