@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { registerFiles, buildFileContext, readFileForContext, isAuthorized, injectFilesIntoLastTurn } from './attach'
+import { registerFiles, buildFileContext, readFileForContext, isAuthorized, injectFilesIntoLastTurn, MAX_ATTACH_SIZE } from './attach'
 
 let dir: string
 beforeEach(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), 'daniya-attach-')) })
@@ -88,7 +88,18 @@ describe('buildFileContext / readFileForContext', () => {
     const p = write('big.txt', 'b'.repeat(100))
     registerFiles([p])
     fs.writeFileSync(p, 'b'.repeat(512 * 1024 + 100))
-    expect(readFileForContext(p).length).toBe(512 * 1024)
+    const out = readFileForContext(p)
+    expect(Buffer.byteLength(out, 'utf8')).toBe(MAX_ATTACH_SIZE)
+  })
+
+  it('中文内容按字节截断（字符数不超限但字节超限）', () => {
+    // '好' 为 3 字节 UTF-8：175762 字符 < 512K 不触发旧字符截断，但 525286 字节 > 512KB
+    const p = write('cjk.txt', '好'.repeat(100))
+    registerFiles([p])
+    fs.writeFileSync(p, '好'.repeat(174_762) + 'b'.repeat(1000))
+    const out = readFileForContext(p)
+    expect(Buffer.byteLength(out, 'utf8')).toBe(MAX_ATTACH_SIZE)
+    expect(out.length).toBe(174_764)
   })
 })
 

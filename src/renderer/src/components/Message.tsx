@@ -33,7 +33,7 @@ export function Message({ msg, streaming }: { msg: ChatMessage; streaming?: bool
       )}
       {msg.files && msg.files.length > 0 && (
         <div className="msg-files">
-          {msg.files.map(f => <span key={f.path} className="file-chip" title={f.path}>{f.name}</span>)}
+          {msg.files.map((f, i) => <span key={`${f.path}-${i}`} className="file-chip" title={f.path}>{f.name}</span>)}
         </div>
       )}
       {msg.content && (

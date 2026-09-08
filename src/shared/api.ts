@@ -16,8 +16,9 @@ export interface Api {
   setApiKey(key: string): Promise<void>
   testConnection(): Promise<{ ok: boolean; message: string }>
   captureScreen(): Promise<{ ok: boolean; dataUrl?: string; error?: string }>
-  pickFiles(): Promise<FileAttachment[]>
+  pickFiles(): Promise<{ files: FileAttachment[]; error?: string }>
   registerFiles(paths: string[]): Promise<{ ok: boolean; files: FileAttachment[]; error?: string }>
+  getPathForFile(f: File): string
   hideWindow(): Promise<void>
   getPetStatus(): Promise<PetStatus>
   openExternal(url: string): Promise<void>

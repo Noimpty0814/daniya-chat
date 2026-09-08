@@ -107,7 +107,7 @@
 
 | 通道 | 方向 | 载荷 → 返回 |
 |---|---|---|
-| `file:pick` | invoke | 无 → `FileAttachment[]`（空数组=取消） |
+| `file:pick` | invoke | 无 → `{ files: FileAttachment[]; error?: string }`（error=拒绝/超限提示，files 空=取消） |
 | `file:pickDir` | invoke | 无 → `string`（空串=取消） |
 | `file:register` | invoke | `string[]`（拖拽路径）→ `{ ok, files?, error? }` |
 | `file:apply` | invoke | `{ id }` → `{ ok, error? }` |
@@ -119,7 +119,7 @@
 
 ### 3.7 渲染层
 
-- `Composer.tsx`：附件 chips（名称+移除×）与截屏预览并列；[选文件] 按钮；拖拽：Composer 区 `onDragOver/onDrop`，`e.dataTransfer.files` 取 `.path`（Electron File.path）→ `file:register`。**上限 3 个**，超限提示。发送时 `onSend(content, images, files)`。发送后 user 气泡显示文件名 chips（`Message.tsx`，数据来自落库的 `files` 元数据）。
+- `Composer.tsx`：附件 chips（名称+移除×）与截屏预览并列；[选文件] 按钮；拖拽：Composer 区 `onDragOver/onDrop`，`e.dataTransfer.files` 的每个 File 对象经 preload 桥 `getPathForFile(f: File)`（`webUtils.getPathForFile`——**Electron 32 起 `File.path` 已移除**，必须在 preload 侧调用）取路径 → `file:register`。**上限 3 个**，超限提示。发送时 `onSend(content, images, files)`。发送后 user 气泡显示文件名 chips（`Message.tsx`，数据来自落库的 `files` 元数据）。
 - `App.tsx`：send/retry 载荷带 files；`onFileProposal` 订阅 → 事件挂到当前会话消息区（提案显示在**本轮 AI 消息气泡下方**）；`file:apply`/`file:reject` 调用与状态更新。
 - `Message.tsx`（或新组件 `FileProposalPanel.tsx`）：diff 红删绿增（`<pre>` 行渲染，样式类 diff-del/diff-add）；[应用修改] [拒绝] 按钮；已应用/已拒绝/已自动应用状态条；error:'invalid-json' → "达妮娅的修改提案格式无效，已忽略（可让她重试）"。
 - 整轮 display 为空但有提案：气泡位置显示轻提示"达妮娅提议修改 <文件名>"（渲染层本地，不落库）。

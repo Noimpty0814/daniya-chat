@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import type { Api } from '../shared/api'
 import type { StreamEventMsg } from '../shared/types'
 
@@ -28,6 +28,7 @@ const api: Api = {
   captureScreen: () => ipcRenderer.invoke('screen:capture'),
   pickFiles: () => ipcRenderer.invoke('file:pick'),
   registerFiles: (paths) => ipcRenderer.invoke('file:register', { paths }),
+  getPathForFile: (f) => webUtils.getPathForFile(f),
   hideWindow: () => ipcRenderer.invoke('window:hide'),
   getPetStatus: () => ipcRenderer.invoke('pet:status'),
   openExternal: (url) => ipcRenderer.invoke('shell:openExternal', { url })

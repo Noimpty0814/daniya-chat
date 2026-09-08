@@ -28,11 +28,12 @@ export function Composer(props: {
   }
 
   const pick = async (): Promise<void> => {
-    const picked = await window.api.pickFiles()
+    const { files: picked, error } = await window.api.pickFiles()
     if (picked.length) {
       if (files.length + picked.length > 3) setShotMsg('最多附加 3 个文件')
       setFiles([...files, ...picked].slice(0, 3))
     }
+    if (error) setShotMsg(error)
   }
 
   const register = async (paths: string[]): Promise<void> => {
@@ -53,8 +54,8 @@ export function Composer(props: {
       onDrop={e => {
         e.preventDefault()
         const paths = Array.from(e.dataTransfer.files)
-          .map(f => (f as File & { path?: string }).path)
-          .filter((p): p is string => !!p)
+          .map(f => window.api.getPathForFile(f))
+          .filter(Boolean)
         void register(paths)
       }}>
       {(images.length > 0 || files.length > 0) && (
@@ -66,7 +67,7 @@ export function Composer(props: {
             </div>
           ))}
           {files.map((f, i) => (
-            <div key={f.path} className="file-chip">
+            <div key={`${f.path}-${i}`} className="file-chip">
               <span title={f.path}>{f.name}</span>
               <button className="shot-remove" onClick={() => removeFile(i)}>×</button>
             </div>

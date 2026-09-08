@@ -36,10 +36,13 @@ export function registerFiles(paths: string[]): { ok: boolean; files: FileAttach
   return { ok: true, files }
 }
 
-export async function pickFiles(): Promise<FileAttachment[]> {
+export async function pickFiles(): Promise<{ files: FileAttachment[]; error?: string }> {
   const r = await dialog.showOpenDialog({ properties: ['openFile', 'multiSelections'] })
-  if (r.canceled || r.filePaths.length === 0) return []
-  return registerFiles(r.filePaths.slice(0, 3)).files
+  if (r.canceled || r.filePaths.length === 0) return { files: [] }
+  const over = r.filePaths.length > 3 ? '最多附加 3 个文件' : undefined
+  const reg = registerFiles(r.filePaths.slice(0, 3))
+  const error = over && reg.error ? `${over}；${reg.error}` : (over ?? reg.error)
+  return { files: reg.files, error }
 }
 
 export function isAuthorized(p: string): boolean {
@@ -49,7 +52,8 @@ export function isAuthorized(p: string): boolean {
 export function readFileForContext(p: string): string {
   if (!isAuthorized(p)) throw new Error(`未授权文件：${p}`)
   const raw = fs.readFileSync(p, 'utf8')
-  return raw.length > MAX_ATTACH_SIZE ? raw.slice(0, MAX_ATTACH_SIZE) : raw
+  const buf = Buffer.from(raw, 'utf8')
+  return buf.length > MAX_ATTACH_SIZE ? buf.subarray(0, MAX_ATTACH_SIZE).toString('utf8') : raw
 }
 
 export function buildFileContext(files: FileAttachment[]): string {

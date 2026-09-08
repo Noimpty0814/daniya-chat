@@ -133,5 +133,5 @@ export function registerIpc(opts: RegisterIpcOpts): void {
   ipcMain.handle('pet:status', () => pet().status())
 
   ipcMain.handle('file:pick', () => pickFiles())
-  ipcMain.handle('file:register', (_e, p: { paths?: string[] }) => registerFiles(p.paths ?? []))
+  ipcMain.handle('file:register', (_e, p: { paths?: unknown[] }) => registerFiles((p.paths ?? []).filter((x): x is string => typeof x === 'string')))
 }
