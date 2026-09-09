@@ -79,6 +79,21 @@ describe('applyProposal', () => {
     expect(applyProposal('no-such-id').ok).toBe(false)
   })
 
+  it('写入失败后可重试：目标被目录占位时失败，恢复后同 id 再应用成功', () => {
+    const p = path.join(dir, 'x.txt'); write(p, 'old')
+    registerFiles([p])
+    const r = createProposal(p, 'new', { workDir: '', autoApply: false })
+    if (!r.ok) throw new Error('unreachable')
+    fs.rmSync(p)
+    fs.mkdirSync(p)
+    const a1 = applyProposal(r.event.id)
+    expect(a1.ok).toBe(false)
+    fs.rmSync(p, { recursive: true })
+    const a2 = applyProposal(r.event.id)
+    expect(a2.ok).toBe(true)
+    expect(fs.readFileSync(p, 'utf8')).toBe('new')
+  })
+
   it('reject 后不可再 apply', () => {
     const p = path.join(dir, 'x.txt'); write(p, 'old')
     registerFiles([p])

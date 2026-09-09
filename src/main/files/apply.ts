@@ -51,12 +51,12 @@ export function createProposal(rawPath: string, content: string, fileSettings: {
 export function applyProposal(id: string): { ok: boolean; error?: string } {
   const rec = proposals.get(id)
   if (!rec) return { ok: false, error: '提案不存在或已处理' }
-  proposals.delete(id)
   try {
-    try { fs.renameSync(rec.resolvedPath, rec.resolvedPath + '.bak') } catch { /* 备份失败不阻断写入 */ }
+    try { fs.copyFileSync(rec.resolvedPath, rec.resolvedPath + '.bak') } catch { /* 备份失败不阻断写入 */ }
     const tmp = rec.resolvedPath + '.tmp'
     fs.writeFileSync(tmp, rec.content, 'utf8')
     fs.renameSync(tmp, rec.resolvedPath)
+    proposals.delete(id)
     return { ok: true }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : '写入失败' }
