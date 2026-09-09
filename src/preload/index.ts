@@ -24,6 +24,7 @@ const api: Api = {
   getSettings: () => ipcRenderer.invoke('settings:get'),
   saveSettings: (s) => ipcRenderer.invoke('settings:save', s),
   setApiKey: (key) => ipcRenderer.invoke('settings:setApiKey', { key }),
+  setSearchKey: (key) => ipcRenderer.invoke('settings:setSearchKey', { key }),
   testConnection: () => ipcRenderer.invoke('settings:testConnection'),
   captureScreen: () => ipcRenderer.invoke('screen:capture'),
   pickFiles: () => ipcRenderer.invoke('file:pick'),

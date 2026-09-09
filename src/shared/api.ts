@@ -14,6 +14,7 @@ export interface Api {
   getSettings(): Promise<AppSettingsView>
   saveSettings(s: AppSettingsView): Promise<void>
   setApiKey(key: string): Promise<void>
+  setSearchKey(key: string): Promise<void>
   testConnection(): Promise<{ ok: boolean; message: string }>
   captureScreen(): Promise<{ ok: boolean; dataUrl?: string; error?: string }>
   pickFiles(): Promise<{ files: FileAttachment[]; error?: string }>

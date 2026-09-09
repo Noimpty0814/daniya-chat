@@ -5,10 +5,11 @@ import type { AppSettingsView, ChatMessage, FileProposalEvent, StreamEventMsg, S
 import { streamChat, ApiError, type ChatTurn } from './deepseek/client'
 import type { DeepSeekConfig } from './deepseek/client'
 import type { Emotion } from './deepseek/emotion'
-import { loadSettings, saveSettings, toView, setApiKey, applyView, type AppSettings } from './settings'
+import { loadSettings, saveSettings, toView, setApiKey, getSearchKey, setSearchKey, applyView, type AppSettings } from './settings'
 import { capturePrimaryScreen } from './screenshot'
 import { registerFiles, pickFiles, injectFilesIntoLastTurn } from './files/attach'
 import { createProposal, applyProposal, rejectProposal } from './files/apply'
+import { searchBocha, buildSearchContext } from './search/bocha'
 import type { PetCoordinator } from './pet/coordinator'
 
 interface StreamHandle { abort: AbortController; conversationId: string }
@@ -48,10 +49,24 @@ export function registerIpc(opts: RegisterIpcOpts): void {
     if (!cfg) return { ok: false, error: '请先在设置中填写 API Key' }
     if (settings.file.workDir) cfg.systemPrompt += `\n\n用户当前工作目录（可直接修改其中文件）：${settings.file.workDir}`
 
+    let searchBlock: string | undefined
+    let searchError: string | undefined
+    if (p.search) {
+      const key = getSearchKey(settings)
+      if (!key) searchError = '未配置'
+      else {
+        const r = await searchBocha(p.content, key)
+        if (r.ok) searchBlock = buildSearchContext(p.content, r.results)
+        else searchError = r.error
+      }
+    }
+
     const userMessage: ChatMessage = {
       id: randomUUID(), role: 'user', content: p.content,
       images: p.images?.map(u => ({ id: randomUUID(), dataUrl: u })),
       files: p.files,
+      searched: p.search === true,
+      searchError,
       createdAt: Date.now()
     }
     // R23：流错误后的重试复用已在库中的 user 消息，跳过落库避免重复（userMessage 仍返回供渲染层补气泡判断）
@@ -63,6 +78,10 @@ export function registerIpc(opts: RegisterIpcOpts): void {
     const requestId = randomUUID()
     const history = store.getMessages(p.conversationId).slice(-MAX_CONTEXT).map(toTurn)
     injectFilesIntoLastTurn(history, p.files ?? [])
+    if (searchBlock) {
+      const last = history[history.length - 1]
+      if (last && last.role === 'user') last.content = last.content + '\n\n' + searchBlock
+    }
     const ac = new AbortController()
     streams.set(requestId, { abort: ac, conversationId: p.conversationId })
     const send = (msg: Omit<StreamEventMsg, 'requestId'>) => { if (!e.sender.isDestroyed()) e.sender.send('chat:stream', { requestId, ...msg }) }
@@ -128,6 +147,7 @@ export function registerIpc(opts: RegisterIpcOpts): void {
     opts.onSettingsChanged?.(next)
   })
   ipcMain.handle('settings:setApiKey', (_e, p: { key: string }) => { setApiKey(settingsFile, p.key ?? '') })
+  ipcMain.handle('settings:setSearchKey', (_e, p: { key: string }) => { setSearchKey(settingsFile, p.key ?? '') })
   ipcMain.handle('settings:testConnection', async () => {
     const s = loadSettings(settingsFile)
     const cfg = getConfig(s)
