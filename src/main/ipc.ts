@@ -46,6 +46,7 @@ export function registerIpc(opts: RegisterIpcOpts): void {
     const settings = loadSettings(settingsFile)
     const cfg = getConfig(settings)
     if (!cfg) return { ok: false, error: '请先在设置中填写 API Key' }
+    if (settings.file.workDir) cfg.systemPrompt += `\n\n用户当前工作目录（可直接修改其中文件）：${settings.file.workDir}`
 
     const userMessage: ChatMessage = {
       id: randomUUID(), role: 'user', content: p.content,

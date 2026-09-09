@@ -51,9 +51,15 @@ export function isAuthorized(p: string): boolean {
 
 export function readFileForContext(p: string): string {
   if (!isAuthorized(p)) throw new Error(`未授权文件：${p}`)
-  const raw = fs.readFileSync(p, 'utf8')
-  const buf = Buffer.from(raw, 'utf8')
-  return buf.length > MAX_ATTACH_SIZE ? buf.subarray(0, MAX_ATTACH_SIZE).toString('utf8') : raw
+  const st = fs.statSync(p)
+  if (st.size <= MAX_ATTACH_SIZE) return fs.readFileSync(p, 'utf8')
+  const fd = fs.openSync(p, 'r')
+  try {
+    const buf = Buffer.alloc(MAX_ATTACH_SIZE)
+    fs.readSync(fd, buf, 0, MAX_ATTACH_SIZE, 0)
+    const out = buf.toString('utf8')
+    return out.endsWith('�') ? out.slice(0, -1) : out
+  } finally { fs.closeSync(fd) }
 }
 
 export function buildFileContext(files: FileAttachment[]): string {
@@ -61,7 +67,7 @@ export function buildFileContext(files: FileAttachment[]): string {
   for (const f of files) {
     let body: string
     try { body = readFileForContext(f.path) } catch { body = '（读取失败，文件不存在或不可读）' }
-    parts.push(`[文件: ${f.name}]\n${body}\n[/文件]`)
+    parts.push(`[文件: ${f.name}（${f.path}）]\n${body}\n[/文件]`)
   }
   return parts.join('\n\n')
 }

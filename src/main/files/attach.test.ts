@@ -58,17 +58,17 @@ describe('registerFiles', () => {
 })
 
 describe('buildFileContext / readFileForContext', () => {
-  it('注入格式：[文件: name] 包裹内容', () => {
+  it('注入格式：[文件: name（path）] 包裹内容', () => {
     const p = write('a.txt', '文件内容')
     registerFiles([p])
-    expect(buildFileContext([{ name: 'a.txt', path: p }])).toBe('[文件: a.txt]\n文件内容\n[/文件]')
+    expect(buildFileContext([{ name: 'a.txt', path: p }])).toBe(`[文件: a.txt（${p}）]\n文件内容\n[/文件]`)
   })
 
   it('多文件用空行分隔', () => {
     const p1 = write('a.txt', 'A'); const p2 = write('b.txt', 'B')
     registerFiles([p1, p2])
     expect(buildFileContext([{ name: 'a.txt', path: p1 }, { name: 'b.txt', path: p2 }]))
-      .toBe('[文件: a.txt]\nA\n[/文件]\n\n[文件: b.txt]\nB\n[/文件]')
+      .toBe(`[文件: a.txt（${p1}）]\nA\n[/文件]\n\n[文件: b.txt（${p2}）]\nB\n[/文件]`)
   })
 
   it('未授权读取：抛错', () => {
@@ -80,7 +80,7 @@ describe('buildFileContext / readFileForContext', () => {
     const p = write('gone.txt', 'tmp')
     registerFiles([p])
     fs.rmSync(p)
-    expect(buildFileContext([{ name: 'gone.txt', path: p }])).toBe('[文件: gone.txt]\n（读取失败，文件不存在或不可读）\n[/文件]')
+    expect(buildFileContext([{ name: 'gone.txt', path: p }])).toBe(`[文件: gone.txt（${p}）]\n（读取失败，文件不存在或不可读）\n[/文件]`)
   })
 
   it('读取超过 512KB：截断兜底', () => {
@@ -109,7 +109,7 @@ describe('injectFilesIntoLastTurn', () => {
     registerFiles([p])
     const turns = [{ role: 'user', content: '帮我看看' }]
     injectFilesIntoLastTurn(turns, [{ name: 'a.txt', path: p }])
-    expect(turns[0].content).toBe('帮我看看\n\n[文件: a.txt]\n内容\n[/文件]')
+    expect(turns[0].content).toBe(`帮我看看\n\n[文件: a.txt（${p}）]\n内容\n[/文件]`)
   })
 
   it('无文件或末轮非 user：不动', () => {

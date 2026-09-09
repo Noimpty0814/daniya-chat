@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { FileProposalEvent } from '../../../shared/types'
 
 export function FileProposalPanel(props: {
@@ -6,6 +7,7 @@ export function FileProposalPanel(props: {
   onReject: (id: string) => void
 }): React.JSX.Element {
   const { ev } = props
+  const [busy, setBusy] = useState(false)
   if (ev.error) return <div className="proposal-panel"><span className="proposal-note">{ev.error}</span></div>
   if (ev.status === 'applied') return <div className="proposal-panel"><span className="proposal-note">已应用修改：{ev.path}</span></div>
   if (ev.status === 'apply-failed') return <div className="proposal-panel"><span className="proposal-note">应用失败，文件未改动：{ev.path}</span></div>
@@ -25,7 +27,7 @@ export function FileProposalPanel(props: {
         ))}
       </div>
       <div className="proposal-actions">
-        <button className="apply" onClick={() => props.onApply(ev.id)}>应用修改</button>
+        <button className="apply" disabled={busy} onClick={() => { if (busy) return; setBusy(true); props.onApply(ev.id) }}>应用修改</button>
         <button onClick={() => props.onReject(ev.id)}>拒绝</button>
       </div>
     </div>

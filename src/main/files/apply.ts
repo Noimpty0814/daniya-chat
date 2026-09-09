@@ -38,8 +38,11 @@ export function createProposal(rawPath: string, content: string, fileSettings: {
   if (!auth.ok) return { ok: false, error: auth.error }
   if (content.length > MAX_PROPOSAL_SIZE) return { ok: false, error: '拒绝：提案超过 64KB' }
   let oldText: string
-  try { oldText = fs.readFileSync(auth.resolvedPath, 'utf8') } catch { return { ok: false, error: '拒绝：无法读取目标文件' } }
-  if (oldText.length > MAX_PROPOSAL_SIZE) return { ok: false, error: '拒绝：目标文件超过 64KB' }
+  try {
+    const st = fs.statSync(auth.resolvedPath)
+    if (st.size > MAX_PROPOSAL_SIZE) return { ok: false, error: '拒绝：目标文件超过 64KB' }
+    oldText = fs.readFileSync(auth.resolvedPath, 'utf8')
+  } catch { return { ok: false, error: '拒绝：无法读取目标文件' } }
   if (isBinary(auth.resolvedPath)) return { ok: false, error: '拒绝：二进制文件不可修改' }
   const id = randomUUID()
   const diff = diffLines(oldText, content)

@@ -49,10 +49,11 @@
 ```
 <用户正文>
 
-[文件: <name>]
+[文件: <name>（<绝对路径>）]
 <文件内容>
 [/文件]
 ```
+工作目录非空时，system 消息（FILE_CONTRACT 之前）追加一行当前工作目录绝对路径——模型须知道附件路径与可修改范围才能产出合法提案。
 
 - 读取失败（文件被删等）：该附件注入 `[文件: <name>]\n（读取失败，文件不存在或不可读）`，不阻断发送。
 
@@ -90,7 +91,7 @@
 - **可改路径 = 会话附件集 ∪ 设置页工作目录内文件**。校验：`path.resolve`；附件集用全等比较；工作目录用 `resolvedPath === workDir 或 startsWith(workDir + path.sep)`；不满足 → 拒绝（`拒绝：只能修改本轮附带或工作目录内的文件`）。
 - 提案大小上限：`content.length > 64KB` → 拒绝；**目标文件同样 ≤ 64KB**（超过拒绝——AI 无法可靠重写更大的文件，且行级 diff 需内存保护）。
 - `diff.ts`：自写行级 LCS diff（不引新依赖），输出 `{ lines: [{kind:'same'|'add'|'del', text}] }`。二进制文件在写入前再探测一次（NUL），拒绝。
-- 写入：`renameSync(原文件, 原文件 + '.bak')`（覆盖式，保留上一版）→ `writeFileSync(tmp)` + `renameSync(tmp, 原文件)`（原子写，沿用 store 惯例）。写入失败（权限/占用）→ 错误提示，不崩。
+- 写入：`copyFileSync(原文件, 原文件 + '.bak')`（覆盖式拷贝；原文件原位保留，直到 tmp/rename 原子替换成功——写入中途失败时目标文件不消失，提案记录保留可重试）→ `writeFileSync(tmp)` + `renameSync(tmp, 原文件)`（原子写，沿用 store 惯例）。写入失败（权限/占用）→ 错误提示，不崩。
 - 提案生命周期：主进程生成 `proposalId`（randomUUID），持有 `{id, path, content, resolvedPath}` 状态表。渲染层确认 → `file:apply {id}` → 校验通过则写 + 发结果；拒绝 → `file:reject {id}` 清状态。
 - **自动放行**：设置 `file.workDir` 非空且提案路径在工作目录内且 `file.autoApply === true` → 主进程直接写入，事件 `autoApplied: true`（渲染层显示"已自动应用修改：<path>"）。
 
