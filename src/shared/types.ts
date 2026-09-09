@@ -6,6 +6,9 @@ export interface ChatMessage {
   content: string
   images?: ImagePart[]
   files?: FileAttachment[]
+  /** 该轮是否勾选了联网搜索；搜索失败原因（主进程映射的中文） */
+  searched?: boolean
+  searchError?: string
   model?: string
   createdAt: number
 }
@@ -19,6 +22,7 @@ export interface AppSettingsView {
   pet: PetSettings
   emotionKeys: Record<string, string>
   file: { workDir: string; autoApply: boolean }
+  search: { hasKey: boolean; enabledDefault: boolean }
   hasApiKey: boolean
 }
 export interface StreamEventMsg {
@@ -35,6 +39,7 @@ export interface StartReplyPayload {
   content: string
   images?: string[]
   files?: FileAttachment[]
+  search?: boolean
   /** R23：流错误重试时该 user 消息已在库中，主进程跳过再次落库（仍构造并返回 userMessage） */
   skipUserAppend?: boolean
 }

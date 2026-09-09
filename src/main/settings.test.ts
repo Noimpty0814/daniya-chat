@@ -1,10 +1,17 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { loadSettings, saveSettings, toView, DEFAULT_SETTINGS, applyView, type AppSettings } from './settings'
+import { loadSettings, saveSettings, toView, DEFAULT_SETTINGS, applyView, setSearchKey, getSearchKey, type AppSettings } from './settings'
 import { DEFAULT_PERSONA } from './deepseek/client'
 import type { AppSettingsView } from '../shared/types'
+
+vi.mock('electron', () => ({
+  safeStorage: {
+    encryptString: (s: string) => Buffer.from('enc:' + s),
+    decryptString: (b: Buffer) => b.toString('utf8').replace(/^enc:/, '')
+  }
+}))
 
 let dir: string
 let file: string
@@ -34,6 +41,7 @@ describe('settings', () => {
     expect(s.pet).toEqual(DEFAULT_SETTINGS.pet)
     expect(s.emotionKeys.happy).toBe(DEFAULT_SETTINGS.emotionKeys.happy)
     expect(s.file).toEqual(DEFAULT_SETTINGS.file)
+    expect(s.search).toEqual(DEFAULT_SETTINGS.search)
   })
 
   it('file 子对象合并：旧存档缺 file 字段按默认，部分字段按默认补齐', () => {
@@ -95,5 +103,56 @@ describe('applyView', () => {
     expect(next.file).toEqual({ workDir: 'D:/proj', autoApply: true })
     const bad = applyView(cur, { ...v, file: { workDir: 123 as unknown as string, autoApply: 'yes' as unknown as boolean } })
     expect(bad.file).toEqual(cur.file)
+  })
+})
+
+describe('search', () => {
+  it('search 子对象合并：旧存档缺 search 字段按默认，部分字段按默认补齐', () => {
+    fs.writeFileSync(file, JSON.stringify({ search: { enabledDefault: true } }))
+    const s = loadSettings(file)
+    expect(s.search.enabledDefault).toBe(true)
+    expect(s.search.apiKeyEncrypted).toBeNull()
+  })
+
+  it('toView search 不暴露密文，hasKey 反映是否已保存', () => {
+    const v = toView({ ...DEFAULT_SETTINGS, search: { apiKeyEncrypted: 'xxx', enabledDefault: true } })
+    expect(v.search).toEqual({ hasKey: true, enabledDefault: true })
+  })
+
+  it('applyView search 白名单：非法类型回退现值', () => {
+    const cur: AppSettings = { ...DEFAULT_SETTINGS }
+    const v: AppSettingsView = {
+      ...toView(cur),
+      search: { hasKey: false, enabledDefault: true }
+    }
+    const next = applyView(cur, v)
+    expect(next.search.enabledDefault).toBe(true)
+    const bad = applyView(cur, { ...v, search: { hasKey: false, enabledDefault: 'yes' as unknown as boolean } })
+    expect(bad.search.enabledDefault).toBe(false)
+  })
+
+  it('setSearchKey/getSearchKey 往返：加密后读回原文，空值清除', () => {
+    setSearchKey(file, 'sk-test-key')
+    const s = loadSettings(file)
+    // mock 的 encryptString 输出经 base64 落盘：断言落盘值为 base64('enc:sk-test-key')，读回明文为原文
+    expect(s.search.apiKeyEncrypted).toBe(Buffer.from('enc:sk-test-key').toString('base64'))
+    expect(getSearchKey(s)).toBe('sk-test-key')
+    setSearchKey(file, '')
+    expect(getSearchKey(loadSettings(file))).toBeNull()
+  })
+
+  it('懒迁移：bocha-key.enc 存在且 search 密文为空 → 迁入并删除文件', () => {
+    fs.writeFileSync(path.join(dir, 'bocha-key.enc'), 'enc-bocha')
+    const s = loadSettings(file)
+    expect(s.search.apiKeyEncrypted).toBe('enc-bocha')
+    expect(fs.existsSync(path.join(dir, 'bocha-key.enc'))).toBe(false)
+  })
+
+  it('懒迁移：search 密文已存在 → 不迁移不动文件', () => {
+    fs.writeFileSync(file, JSON.stringify({ search: { apiKeyEncrypted: 'existing' } }))
+    fs.writeFileSync(path.join(dir, 'bocha-key.enc'), 'enc-bocha')
+    const s = loadSettings(file)
+    expect(s.search.apiKeyEncrypted).toBe('existing')
+    expect(fs.existsSync(path.join(dir, 'bocha-key.enc'))).toBe(true)
   })
 })
