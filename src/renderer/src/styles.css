@@ -112,3 +112,6 @@ button { font-family: inherit; cursor: pointer; }
 .proposal-actions button { background: var(--panel); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 4px 14px; font-size: 12px; }
 .proposal-actions button.apply { background: var(--accent); border: 0; color: #fff; }
 .proposal-actions button:hover { border-color: var(--accent); }
+
+.search-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.search-badge { align-self: center; margin: 0 8px 6px 0; display: inline-flex; align-items: center; background: var(--accent-soft); color: #c4b5fd; border: 1px solid var(--border); border-radius: 8px; padding: 2px 8px; font-size: 11px; }

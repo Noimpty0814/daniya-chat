@@ -36,6 +36,9 @@ export function Message({ msg, streaming }: { msg: ChatMessage; streaming?: bool
           {msg.files.map((f, i) => <span key={`${f.path}-${i}`} className="file-chip" title={f.path}>{f.name}</span>)}
         </div>
       )}
+      {msg.searched && (
+        <div className="search-badge">{msg.searchError ? `搜索失败：${msg.searchError}` : '已联网搜索'}</div>
+      )}
       {msg.content && (
         <div className="msg-bubble">
           <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeHighlight]}

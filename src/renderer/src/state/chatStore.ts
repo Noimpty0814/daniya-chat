@@ -9,6 +9,7 @@ export interface RetryPayload {
   content: string
   images?: string[]
   files?: FileAttachment[]
+  search?: boolean
   /**
    * 该载荷对应的 user 气泡是否已在界面且已落库：
    * false=首次失败发生在主进程落库前（无 Key/并发流），重试成功后需补气泡（Task 8⑦）；

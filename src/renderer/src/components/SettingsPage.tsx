@@ -7,6 +7,7 @@ const EMOTION_ORDER = ['happy', 'sad', 'sleepy', 'dismissive', 'shy', 'blush', '
 export function SettingsPage({ onBack }: { onBack: () => void }): React.JSX.Element {
   const [form, setForm] = useState<AppSettingsView | null>(null)
   const [apiKey, setApiKey] = useState('')
+  const [searchKey, setSearchKey] = useState('')
   const [saved, setSaved] = useState('')
   const [testMsg, setTestMsg] = useState('')
   const [petStatus, setPetStatus] = useState('')
@@ -26,6 +27,7 @@ export function SettingsPage({ onBack }: { onBack: () => void }): React.JSX.Elem
     try {
       await window.api.saveSettings(form)
       if (apiKey) { await window.api.setApiKey(apiKey); setApiKey('') }
+      if (searchKey) { await window.api.setSearchKey(searchKey); setSearchKey('') }
       setSaved('已保存')
       window.setTimeout(() => setSaved(''), 2000)
     } catch (e) {
@@ -113,6 +115,17 @@ export function SettingsPage({ onBack }: { onBack: () => void }): React.JSX.Elem
           <label className="checkbox"><input type="checkbox" checked={form.file.autoApply}
             onChange={e => set({ file: { ...form.file, autoApply: e.target.checked } })} /> 工作目录内的修改自动放行（跳过确认）</label>
           <p className="field-hint">修改前原文件会备份为同名 .bak；只能修改文本文件（≤64KB）。</p>
+        </section>
+
+        <section>
+          <h2>搜索</h2>
+          <label>博查 API Key（联网搜索用）
+            <input type="password" value={searchKey} placeholder={form.search.hasKey ? '已保存（输入新值可覆盖，留空不变）' : '粘贴博查 API Key'}
+              onChange={e => setSearchKey(e.target.value)} />
+          </label>
+          <label className="checkbox"><input type="checkbox" checked={form.search.enabledDefault}
+            onChange={e => set({ search: { ...form.search, enabledDefault: e.target.checked } })} /> 默认开启联网搜索（每次发送前开关的初始状态）</label>
+          <p className="field-hint">在 open.bochaai.com 注册后可领取免费调用额度（购买 0 元试用资源包 + 兑换口令「博查搜索」）。</p>
         </section>
 
         <section>
