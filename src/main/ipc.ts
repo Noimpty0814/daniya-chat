@@ -44,14 +44,21 @@ export function registerIpc(opts: RegisterIpcOpts): void {
   ipcMain.handle('chat:startReply', async (e: IpcMainInvokeEvent, p: StartReplyPayload): Promise<StartReplyResult> => {
     if (!p.content.trim() && !(p.images && p.images.length > 0) && !(p.files && p.files.length > 0)) return { ok: false, error: '消息内容不能为空' }
     if ([...streams.values()].some(h => h.conversationId === p.conversationId)) return { ok: false, error: '该会话正在生成回复中' }
+    // R1-C1：搜索等待窗口内也占用 streams 占位，防止同会话并发发送
+    const requestId = randomUUID()
+    const ac = new AbortController()
+    streams.set(requestId, { abort: ac, conversationId: p.conversationId })
     const settings = loadSettings(settingsFile)
     const cfg = getConfig(settings)
-    if (!cfg) return { ok: false, error: '请先在设置中填写 API Key' }
+    if (!cfg) {
+      streams.delete(requestId)
+      return { ok: false, error: '请先在设置中填写 API Key' }
+    }
     if (settings.file.workDir) cfg.systemPrompt += `\n\n用户当前工作目录（可直接修改其中文件）：${settings.file.workDir}`
 
     let searchBlock: string | undefined
     let searchError: string | undefined
-    if (p.search) {
+    if (p.search && p.content.trim()) {
       const key = getSearchKey(settings)
       if (!key) searchError = '未配置'
       else {
@@ -65,25 +72,25 @@ export function registerIpc(opts: RegisterIpcOpts): void {
       id: randomUUID(), role: 'user', content: p.content,
       images: p.images?.map(u => ({ id: randomUUID(), dataUrl: u })),
       files: p.files,
-      searched: p.search === true,
+      searched: p.search === true && p.content.trim().length > 0,
       searchError,
       createdAt: Date.now()
     }
     // R23：流错误后的重试复用已在库中的 user 消息，跳过落库避免重复（userMessage 仍返回供渲染层补气泡判断）
+    // R1-I1：重试重搜成功/失败后回写库中旧消息的搜索徽章，避免旧失败原因滞留
     if (!p.skipUserAppend) {
       store.appendMessage(p.conversationId, userMessage)
       store.autoTitle(p.conversationId)
+    } else {
+      store.updateLastUserMessage(p.conversationId, { searched: userMessage.searched === true, searchError: userMessage.searchError })
     }
 
-    const requestId = randomUUID()
     const history = store.getMessages(p.conversationId).slice(-MAX_CONTEXT).map(toTurn)
     injectFilesIntoLastTurn(history, p.files ?? [])
     if (searchBlock) {
       const last = history[history.length - 1]
       if (last && last.role === 'user') last.content = last.content + '\n\n' + searchBlock
     }
-    const ac = new AbortController()
-    streams.set(requestId, { abort: ac, conversationId: p.conversationId })
     const send = (msg: Omit<StreamEventMsg, 'requestId'>) => { if (!e.sender.isDestroyed()) e.sender.send('chat:stream', { requestId, ...msg }) }
     const sendFile = (f: FileProposalEvent): void => { if (!e.sender.isDestroyed()) e.sender.send('file:proposal', f) }
 

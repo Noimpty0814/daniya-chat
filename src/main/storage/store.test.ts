@@ -53,6 +53,30 @@ describe('Store', () => {
     void b
   })
 
+  it('updateLastUserMessage 补丁最后一条 user 消息并落盘', () => {
+    const c = store.createConversation()
+    store.appendMessage(c.id, { ...userMsg('第一条'), searched: true, searchError: '未配置' })
+    store.appendMessage(c.id, { id: 'a1', role: 'assistant', content: '回复', createdAt: Date.now() })
+    store.appendMessage(c.id, { ...userMsg('第二条'), searched: false, searchError: '未配置' })
+    store.updateLastUserMessage(c.id, { searched: true })
+    const msgs = store.getMessages(c.id)
+    expect(msgs[2].searched).toBe(true)
+    expect(msgs[2].searchError).toBeUndefined()
+    expect(msgs[0].searched).toBe(true)
+    expect(msgs[0].searchError).toBe('未配置')
+    const store2 = new Store(dir)
+    expect(store2.getMessages(c.id)[2].searched).toBe(true)
+    expect(store2.getMessages(c.id)[2].searchError).toBeUndefined()
+  })
+
+  it('updateLastUserMessage 无 user 消息时不动', () => {
+    const c = store.createConversation()
+    store.appendMessage(c.id, { id: 'a1', role: 'assistant', content: '回复', createdAt: Date.now() })
+    store.updateLastUserMessage(c.id, { searched: true })
+    expect(store.getMessages(c.id)).toHaveLength(1)
+    expect(store.getMessages(c.id)[0].searched).toBeUndefined()
+  })
+
   it('autoTitle 取第一条用户消息前 20 字，且仅当标题仍是"新对话"', () => {
     const c = store.createConversation()
     store.appendMessage(c.id, userMsg('今天天气怎么样呢我真的很想知道答案'))

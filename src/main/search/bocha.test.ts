@@ -97,4 +97,14 @@ describe('searchBocha', () => {
     expect(r.ok).toBe(true)
     if (r.ok) expect(r.results).toHaveLength(1)
   })
+
+  it('code 无法解析为数字（如 "abc"）→ 搜索服务错误', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({
+      code: 'abc',
+      data: { webPages: { value: [item('t1')] } }
+    })))
+    const r = await searchBocha('q', 'sk-x')
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error).toBe('搜索服务错误')
+  })
 })

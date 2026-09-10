@@ -74,6 +74,8 @@ export default function App(): React.JSX.Element {
       } else if (r.requestId) {
         // Task 8⑦：首次失败发生在主进程落库前（气泡未上屏）时，重试成功后用主进程返回的 userMessage 补气泡
         if (r.userMessage && !userVisible) dispatch({ type: 'appendUser', message: r.userMessage })
+        // R1-I1：气泡已上屏时改为回写最后一条 user 消息的搜索徽章（重搜后的新结果/新错误）
+        else if (r.userMessage && userVisible) dispatch({ type: 'patchLastUser', searched: r.userMessage.searched === true, searchError: r.userMessage.searchError })
         dispatch({ type: 'startStream', requestId: r.requestId })
       }
     })

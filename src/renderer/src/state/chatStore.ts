@@ -39,6 +39,7 @@ export type Action =
   | { type: 'rename'; id: string; title: string }
   | { type: 'remove'; id: string }
   | { type: 'appendUser'; message: ChatMessage }
+  | { type: 'patchLastUser'; searched: boolean; searchError?: string }
   | { type: 'startStream'; requestId: string }
   | { type: 'streamEvent'; e: StreamEventMsg; retry?: RetryPayload }
   | { type: 'fileProposal'; e: FileProposalEvent }
@@ -70,6 +71,16 @@ export function reducer(state: State, a: Action): State {
     }
     case 'appendUser':
       return { ...state, messages: [...state.messages, a.message] }
+    case 'patchLastUser': {
+      let idx = -1
+      for (let i = state.messages.length - 1; i >= 0; i--) {
+        if (state.messages[i].role === 'user') { idx = i; break }
+      }
+      if (idx < 0) return state
+      const messages = [...state.messages]
+      messages[idx] = { ...messages[idx], searched: a.searched, searchError: a.searchError }
+      return { ...state, messages }
+    }
     case 'startStream':
       return { ...state, streaming: { requestId: a.requestId, text: '' }, error: null, errorRetry: null, proposal: null }
     case 'streamEvent': {

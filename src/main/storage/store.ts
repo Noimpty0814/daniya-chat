@@ -96,6 +96,16 @@ export class Store {
     if (m) { m.updatedAt = Date.now(); this.saveMeta() }
   }
 
+  /** 从末尾找最后一条 role==='user' 的消息打补丁并落盘；找不到则不动（重试搜索后回写徽章） */
+  updateLastUserMessage(id: string, patch: { searched: boolean; searchError?: string }): void {
+    const msgs = this.loadMessages(id)
+    const last = [...msgs].reverse().find(x => x.role === 'user')
+    if (!last) return
+    last.searched = patch.searched
+    last.searchError = patch.searchError
+    this.saveMessages(id)
+  }
+
   autoTitle(id: string): void {
     const m = this.meta.find(x => x.id === id)
     if (!m || m.title !== NEW_TITLE) return

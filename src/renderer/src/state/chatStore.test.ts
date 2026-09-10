@@ -86,6 +86,28 @@ describe('chatStore reducer', () => {
     expect(s.messages[0].content).toBe('你好')
   })
 
+  it('patchLastUser 更新最后一条 user 消息的 searched/searchError，不动其他消息', () => {
+    const base: State = {
+      ...initialState,
+      messages: [
+        { ...msg('u1', '旧消息'), searched: true, searchError: '未配置' },
+        msg('a1', '回复', 'assistant'),
+        { ...msg('u2', '新消息'), searched: false, searchError: '未配置' }
+      ]
+    }
+    const s = reducer(base, { type: 'patchLastUser', searched: true, searchError: undefined })
+    expect(s.messages[0].searched).toBe(true)
+    expect(s.messages[0].searchError).toBe('未配置')
+    expect(s.messages[1].searched).toBeUndefined()
+    expect(s.messages[2].searched).toBe(true)
+    expect(s.messages[2].searchError).toBeUndefined()
+  })
+
+  it('patchLastUser 无 user 消息时原样返回 state', () => {
+    const base: State = { ...initialState, messages: [msg('a1', '回复', 'assistant')] }
+    expect(reducer(base, { type: 'patchLastUser', searched: true })).toBe(base)
+  })
+
   it('startStream 初始化 streaming 并清空错误', () => {
     const base: State = { ...initialState, error: 'boom' }
     const s = reducer(base, { type: 'startStream', requestId: 'r1' })

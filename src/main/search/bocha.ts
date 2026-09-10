@@ -34,7 +34,8 @@ export async function searchBocha(query: string, apiKey: string):
     // 官方文档成功 code=200（旧版本兼容 0）；数字/字符串形式都容忍
     if (j.code !== undefined && j.code !== null) {
       const c = Number(j.code)
-      if (!Number.isNaN(c) && c !== 0 && c !== 200) return { ok: false, error: '搜索服务错误' }
+      if (Number.isNaN(c)) return { ok: false, error: '搜索服务错误' }
+      if (c !== 0 && c !== 200) return { ok: false, error: '搜索服务错误' }
     }
     const value = j.data?.webPages?.value
     if (!Array.isArray(value)) return { ok: false, error: '搜索服务错误' }

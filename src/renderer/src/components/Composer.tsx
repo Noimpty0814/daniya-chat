@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FileAttachment } from '../../../shared/types'
 
 export function Composer(props: {
@@ -13,6 +13,9 @@ export function Composer(props: {
   const [search, setSearch] = useState(props.initialSearch)
   const [shotMsg, setShotMsg] = useState('')
   const taRef = useRef<HTMLTextAreaElement>(null)
+
+  // R1-M3：getSettings 异步返回晚于挂载时同步初始勾选状态
+  useEffect(() => { setSearch(props.initialSearch) }, [props.initialSearch])
 
   const submit = (): void => {
     const t = text.trim()
