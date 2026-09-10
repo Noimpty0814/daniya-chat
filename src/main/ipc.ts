@@ -78,11 +78,17 @@ export function registerIpc(opts: RegisterIpcOpts): void {
     }
     // R23：流错误后的重试复用已在库中的 user 消息，跳过落库避免重复（userMessage 仍返回供渲染层补气泡判断）
     // R1-I1：重试重搜成功/失败后回写库中旧消息的搜索徽章，避免旧失败原因滞留
-    if (!p.skipUserAppend) {
-      store.appendMessage(p.conversationId, userMessage)
-      store.autoTitle(p.conversationId)
-    } else {
-      store.updateLastUserMessage(p.conversationId, { searched: userMessage.searched === true, searchError: userMessage.searchError })
+    // R2：落库异常（如磁盘满 ENOSPC）时释放 streams 占位，防止占位永久泄漏锁死会话；渲染层走既有错误条+retry 载荷路径
+    try {
+      if (!p.skipUserAppend) {
+        store.appendMessage(p.conversationId, userMessage)
+        store.autoTitle(p.conversationId)
+      } else {
+        store.updateLastUserMessage(p.conversationId, { searched: userMessage.searched === true, searchError: userMessage.searchError })
+      }
+    } catch {
+      streams.delete(requestId)
+      return { ok: false, error: '消息保存失败' }
     }
 
     const history = store.getMessages(p.conversationId).slice(-MAX_CONTEXT).map(toTurn)
