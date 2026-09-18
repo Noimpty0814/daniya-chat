@@ -5,6 +5,7 @@ dist/
 *.tsbuildinfo
 .worktrees/
 .superpowers/
+.claude/
 # 控制器临时启动器（勿提交勿删）
 daniya-launch.vbs
 daniya.ico
