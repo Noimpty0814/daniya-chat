@@ -7,7 +7,6 @@ const EMOTION_ORDER = ['happy', 'sad', 'sleepy', 'dismissive', 'shy', 'blush', '
 export function SettingsPage({ onBack }: { onBack: () => void }): React.JSX.Element {
   const [form, setForm] = useState<AppSettingsView | null>(null)
   const [apiKey, setApiKey] = useState('')
-  const [searchKey, setSearchKey] = useState('')
   const [saved, setSaved] = useState('')
   const [testMsg, setTestMsg] = useState('')
   const [petStatus, setPetStatus] = useState('')
@@ -27,7 +26,6 @@ export function SettingsPage({ onBack }: { onBack: () => void }): React.JSX.Elem
     try {
       await window.api.saveSettings(form)
       if (apiKey) { await window.api.setApiKey(apiKey); setApiKey('') }
-      if (searchKey) { await window.api.setSearchKey(searchKey); setSearchKey('') }
       setSaved('已保存')
       window.setTimeout(() => setSaved(''), 2000)
     } catch (e) {
@@ -60,11 +58,8 @@ export function SettingsPage({ onBack }: { onBack: () => void }): React.JSX.Elem
           <label>Base URL
             <input value={form.baseUrl} onChange={e => set({ baseUrl: e.target.value })} />
           </label>
-          <label>文本模型
-            <input value={form.textModel} onChange={e => set({ textModel: e.target.value })} />
-          </label>
-          <label>视觉模型（截屏消息使用）
-            <input value={form.visionModel} onChange={e => set({ visionModel: e.target.value })} />
+          <label>模型（文本与图像输入共用）
+            <input value={form.model} onChange={e => set({ model: e.target.value })} />
           </label>
           <div className="settings-actions">
             <button onClick={() => void test()}>测试连接</button>
@@ -78,7 +73,7 @@ export function SettingsPage({ onBack }: { onBack: () => void }): React.JSX.Elem
             <li>打开 <a href="#" onClick={e => { e.preventDefault(); void window.api.openExternal('https://platform.deepseek.com') }}>platform.deepseek.com</a> 注册并登录</li>
             <li>在左侧菜单进入「API Keys」页面</li>
             <li>点击「创建 API Key」，命名后复制生成的 Key（Key 只显示一次，请立即粘贴到本应用）</li>
-            <li>需先在平台充值（按量计费，费用很低）；视觉模型为实验版，随 Key 自动可用</li>
+            <li>需先在平台充值（按量计费，费用很低）</li>
           </ol>
         </section>
 
@@ -115,17 +110,6 @@ export function SettingsPage({ onBack }: { onBack: () => void }): React.JSX.Elem
           <label className="checkbox"><input type="checkbox" checked={form.file.autoApply}
             onChange={e => set({ file: { ...form.file, autoApply: e.target.checked } })} /> 工作目录内的修改自动放行（跳过确认）</label>
           <p className="field-hint">修改前原文件会备份为同名 .bak；只能修改文本文件（≤64KB）。</p>
-        </section>
-
-        <section>
-          <h2>搜索</h2>
-          <label>博查 API Key（联网搜索用）
-            <input type="password" value={searchKey} placeholder={form.search.hasKey ? '已保存（输入新值可覆盖，留空不变）' : '粘贴博查 API Key'}
-              onChange={e => setSearchKey(e.target.value)} />
-          </label>
-          <label className="checkbox"><input type="checkbox" checked={form.search.enabledDefault}
-            onChange={e => set({ search: { ...form.search, enabledDefault: e.target.checked } })} /> 默认开启联网搜索（每次发送前开关的初始状态）</label>
-          <p className="field-hint">在 open.bochaai.com 注册后可领取免费调用额度（购买 0 元试用资源包 + 兑换口令「博查搜索」）。</p>
         </section>
 
         <section>

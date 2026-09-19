@@ -1,47 +1,45 @@
 export interface ConversationMeta { id: string; title: string; createdAt: number; updatedAt: number }
 export interface ImagePart { id: string; dataUrl: string }
+export interface ToolUse { name: string; ok?: boolean }
 export interface ChatMessage {
   id: string
   role: 'user' | 'assistant'
   content: string
   images?: ImagePart[]
   files?: FileAttachment[]
-  /** 该轮是否勾选了联网搜索；搜索失败原因（主进程映射的中文） */
-  searched?: boolean
-  searchError?: string
+  /** 该轮调用过的工具徽照搬（name + 最终成败态） */
+  tools?: ToolUse[]
   model?: string
   createdAt: number
 }
-export interface SearchHit { conversationId: string; messageId: string; role: 'user' | 'assistant'; snippet: string }
+export interface SearchHit { conversationId: string; messageId: string; role: 'user' | 'assistant' | 'title'; snippet: string }
 export interface PetSettings { enabled: boolean; exePath: string; exeName: string }
 export interface AppSettingsView {
   baseUrl: string
-  textModel: string
-  visionModel: string
+  model: string
   systemPrompt: string
   pet: PetSettings
   emotionKeys: Record<string, string>
   file: { workDir: string; autoApply: boolean }
-  search: { hasKey: boolean; enabledDefault: boolean }
   hasApiKey: boolean
 }
+/** 工具徽照搬事件载荷：tool.call → {name, callId, preview}；tool.result → {name, callId, ok, preview} */
+export interface ToolBadge { name: string; callId: string; ok?: boolean; preview?: string }
 export interface StreamEventMsg {
   requestId: string
-  type: 'delta' | 'emotion' | 'done' | 'error'
+  type: 'delta' | 'emotion' | 'done' | 'error' | 'tool'
   delta?: string
   emotion?: string
   message?: ChatMessage
   error?: string
   aborted?: boolean
+  tool?: ToolBadge
 }
 export interface StartReplyPayload {
   conversationId: string
   content: string
   images?: string[]
   files?: FileAttachment[]
-  search?: boolean
-  /** R23：流错误重试时该 user 消息已在库中，主进程跳过再次落库（仍构造并返回 userMessage） */
-  skipUserAppend?: boolean
 }
 export interface StartReplyResult { ok: boolean; error?: string; requestId?: string; userMessage?: ChatMessage }
 export interface PetStatus { helperRunning: boolean; connected: boolean; petWindowFound: boolean }

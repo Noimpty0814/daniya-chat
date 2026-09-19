@@ -1,19 +1,18 @@
-import type { ChatMessage, ConversationMeta, FileAttachment, FileProposalEvent, SearchHit, StreamEventMsg } from '../../../shared/types'
+import type { ChatMessage, ConversationMeta, FileAttachment, FileProposalEvent, SearchHit, StreamEventMsg, ToolBadge } from '../../../shared/types'
 
 export type View = 'chat' | 'settings'
 
-export interface Streaming { requestId: string; text: string }
+export interface Streaming { requestId: string; text: string; tools: ToolBadge[] }
 
 /** 发送失败时随错误保存的重试载荷（修复②：retry 优先用它重发，而非找最后一条 user 消息） */
 export interface RetryPayload {
   content: string
   images?: string[]
   files?: FileAttachment[]
-  search?: boolean
   /**
-   * 该载荷对应的 user 气泡是否已在界面且已落库：
-   * false=首次失败发生在主进程落库前（无 Key/并发流），重试成功后需补气泡（Task 8⑦）；
-   * true=消息已在库（流错误重试或回退自 state 最后一条 user 消息），重试时主进程跳过落库（R23）且不补气泡
+   * 该载荷对应的 user 气泡是否已在界面上屏：
+   * false=首次失败发生在流建立前（无 Key/并发流），重试成功后需补气泡；
+   * true=气泡已上屏（流错误重试或回退自 state 最后一条 user 消息），重试时不再补气泡
    */
   userVisible?: boolean
 }
@@ -39,7 +38,6 @@ export type Action =
   | { type: 'rename'; id: string; title: string }
   | { type: 'remove'; id: string }
   | { type: 'appendUser'; message: ChatMessage }
-  | { type: 'patchLastUser'; searched: boolean; searchError?: string }
   | { type: 'startStream'; requestId: string }
   | { type: 'streamEvent'; e: StreamEventMsg; retry?: RetryPayload }
   | { type: 'fileProposal'; e: FileProposalEvent }
@@ -71,18 +69,8 @@ export function reducer(state: State, a: Action): State {
     }
     case 'appendUser':
       return { ...state, messages: [...state.messages, a.message] }
-    case 'patchLastUser': {
-      let idx = -1
-      for (let i = state.messages.length - 1; i >= 0; i--) {
-        if (state.messages[i].role === 'user') { idx = i; break }
-      }
-      if (idx < 0) return state
-      const messages = [...state.messages]
-      messages[idx] = { ...messages[idx], searched: a.searched, searchError: a.searchError }
-      return { ...state, messages }
-    }
     case 'startStream':
-      return { ...state, streaming: { requestId: a.requestId, text: '' }, error: null, errorRetry: null, proposal: null }
+      return { ...state, streaming: { requestId: a.requestId, text: '', tools: [] }, error: null, errorRetry: null, proposal: null }
     case 'streamEvent': {
       const e = a.e
       if (e.type === 'error') {
@@ -91,8 +79,26 @@ export function reducer(state: State, a: Action): State {
       }
       if (!state.streaming || e.requestId !== state.streaming.requestId) return state
       if (e.type === 'delta') return { ...state, streaming: { ...state.streaming, text: state.streaming.text + (e.delta ?? '') } }
+      if (e.type === 'tool') {
+        const t = e.tool
+        if (!t) return state
+        // 按 callId 归并：tool.call 登记进行中徽照搬，tool.result 回写成败态（preview 不丢先到的 args 摘要）
+        const tools = [...state.streaming.tools]
+        const i = tools.findIndex(x => x.callId === t.callId)
+        if (i >= 0) tools[i] = { name: t.name || tools[i].name, callId: t.callId, ok: t.ok ?? tools[i].ok, preview: t.preview ?? tools[i].preview }
+        else tools.push(t)
+        return { ...state, streaming: { ...state.streaming, tools } }
+      }
       if (e.type === 'done') {
-        const messages = e.message && e.message.content.trim() ? [...state.messages, e.message] : state.messages
+        // 徽照搬以 done 载荷为权威；主进程漏带时用流式累积兜底（{name,ok} 投影为 ToolUse）
+        const m = e.message
+        const fallbackTools = !(m?.tools?.length) && state.streaming.tools.length
+          ? state.streaming.tools.map(t => ({ name: t.name, ok: t.ok }))
+          : undefined
+        const message = m && (m.content.trim() || (m.tools?.length ?? 0) > 0 || fallbackTools)
+          ? { ...m, tools: m.tools ?? fallbackTools }
+          : null
+        const messages = message ? [...state.messages, message] : state.messages
         return { ...state, streaming: null, messages, error: null, errorRetry: null }
       }
       return state

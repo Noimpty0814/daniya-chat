@@ -1,0 +1,41 @@
+{
+  "name": "daniya-bridge",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "daniya-chat 自研 dsh 插件：stdio JSON-RPC 桥，把 dsh 进程内事件面接给 Electron 主进程",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    }
+  },
+  "files": [
+    "lib"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@deepseek-ai/dsh-agent": "0.1.6-alpha.2",
+    "@deepseek-ai/dsh-attachment": "0.1.6-alpha.2",
+    "@deepseek-ai/dsh-cmdline": "0.1.6-alpha.2",
+    "@deepseek-ai/dsh-llm": "0.1.6-alpha.2",
+    "@deepseek-ai/dsh-sandbox-policy": "0.1.6-alpha.2",
+    "@deepseek-ai/dsh-sdk-protocol": "0.1.6-alpha.2",
+    "@deepseek-ai/dsh-session": "0.1.6-alpha.2",
+    "@deepseek-ai/dsh-session-persistence": "0.1.6-alpha.2",
+    "@deepseek-ai/dsh-system-prompt": "0.1.6-alpha.2",
+    "@deepseek-ai/schemastery": "3.18.2"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "*"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "4.0.2",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^3.0.0"
+  }
+}

@@ -30,7 +30,7 @@ describe('chatStore reducer', () => {
   it('select 设置 activeId/messages 并清空 streaming/error', () => {
     const dirty: State = {
       ...initialState,
-      streaming: { requestId: 'r', text: 'x' },
+      streaming: { requestId: 'r', text: 'x', tools: [] },
       error: 'boom',
       messages: [msg('old')]
     }
@@ -86,32 +86,10 @@ describe('chatStore reducer', () => {
     expect(s.messages[0].content).toBe('你好')
   })
 
-  it('patchLastUser 更新最后一条 user 消息的 searched/searchError，不动其他消息', () => {
-    const base: State = {
-      ...initialState,
-      messages: [
-        { ...msg('u1', '旧消息'), searched: true, searchError: '未配置' },
-        msg('a1', '回复', 'assistant'),
-        { ...msg('u2', '新消息'), searched: false, searchError: '未配置' }
-      ]
-    }
-    const s = reducer(base, { type: 'patchLastUser', searched: true, searchError: undefined })
-    expect(s.messages[0].searched).toBe(true)
-    expect(s.messages[0].searchError).toBe('未配置')
-    expect(s.messages[1].searched).toBeUndefined()
-    expect(s.messages[2].searched).toBe(true)
-    expect(s.messages[2].searchError).toBeUndefined()
-  })
-
-  it('patchLastUser 无 user 消息时原样返回 state', () => {
-    const base: State = { ...initialState, messages: [msg('a1', '回复', 'assistant')] }
-    expect(reducer(base, { type: 'patchLastUser', searched: true })).toBe(base)
-  })
-
   it('startStream 初始化 streaming 并清空错误', () => {
     const base: State = { ...initialState, error: 'boom' }
     const s = reducer(base, { type: 'startStream', requestId: 'r1' })
-    expect(s.streaming).toEqual({ requestId: 'r1', text: '' })
+    expect(s.streaming).toEqual({ requestId: 'r1', text: '', tools: [] })
     expect(s.error).toBeNull()
   })
 
@@ -154,6 +132,53 @@ describe('chatStore reducer', () => {
     expect(s.messages).toEqual([])
   })
 
+  it('streamEvent tool：call 登记进行中徽照搬，result 按 callId 回写成败态', () => {
+    let s: State = reducer(initialState, { type: 'startStream', requestId: 'r1' })
+    s = reducer(s, { type: 'streamEvent', e: { requestId: 'r1', type: 'tool', tool: { name: 'pwsh', callId: 'c1', preview: 'ls' } } })
+    expect(s.streaming?.tools).toEqual([{ name: 'pwsh', callId: 'c1', preview: 'ls' }])
+    s = reducer(s, { type: 'streamEvent', e: { requestId: 'r1', type: 'tool', tool: { name: 'pwsh', callId: 'c1', ok: true } } })
+    // result 不覆盖先到的 args preview；ok 回写为 true
+    expect(s.streaming?.tools).toEqual([{ name: 'pwsh', callId: 'c1', ok: true, preview: 'ls' }])
+  })
+
+  it('streamEvent tool：多个 callId 并列累积，互不干扰', () => {
+    let s: State = reducer(initialState, { type: 'startStream', requestId: 'r1' })
+    s = reducer(s, { type: 'streamEvent', e: { requestId: 'r1', type: 'tool', tool: { name: 'pwsh', callId: 'c1' } } })
+    s = reducer(s, { type: 'streamEvent', e: { requestId: 'r1', type: 'tool', tool: { name: 'web_search', callId: 'c2' } } })
+    s = reducer(s, { type: 'streamEvent', e: { requestId: 'r1', type: 'tool', tool: { name: 'web_search', callId: 'c2', ok: false } } })
+    expect(s.streaming?.tools.map(t => [t.name, t.ok])).toEqual([['pwsh', undefined], ['web_search', false]])
+  })
+
+  it('streamEvent tool：result 无匹配 callId 时按新徽照搬登记', () => {
+    let s: State = reducer(initialState, { type: 'startStream', requestId: 'r1' })
+    s = reducer(s, { type: 'streamEvent', e: { requestId: 'r1', type: 'tool', tool: { name: 'web_fetch', callId: 'c9', ok: true } } })
+    expect(s.streaming?.tools).toEqual([{ name: 'web_fetch', callId: 'c9', ok: true }])
+  })
+
+  it('streamEvent tool：requestId 不匹配或无 streaming 时忽略', () => {
+    let s: State = reducer(initialState, { type: 'startStream', requestId: 'r1' })
+    s = reducer(s, { type: 'streamEvent', e: { requestId: 'other', type: 'tool', tool: { name: 'pwsh', callId: 'c1' } } })
+    expect(s.streaming?.tools).toEqual([])
+    const s2 = reducer(initialState, { type: 'streamEvent', e: { requestId: 'r1', type: 'tool', tool: { name: 'pwsh', callId: 'c1' } } })
+    expect(s2.streaming).toBeNull()
+  })
+
+  it('streamEvent done：仅含 tools 无内容时也落 messages（徽照搬不丢）', () => {
+    let s: State = reducer(initialState, { type: 'startStream', requestId: 'r1' })
+    s = reducer(s, { type: 'streamEvent', e: { requestId: 'r1', type: 'done', message: { ...msg('a1', '', 'assistant'), tools: [{ name: 'pwsh', ok: true }] } } })
+    expect(s.streaming).toBeNull()
+    expect(s.messages).toHaveLength(1)
+    expect(s.messages[0].tools).toEqual([{ name: 'pwsh', ok: true }])
+  })
+
+  it('streamEvent done：载荷缺 tools 时用流式累积的徽照搬兜底', () => {
+    let s: State = reducer(initialState, { type: 'startStream', requestId: 'r1' })
+    s = reducer(s, { type: 'streamEvent', e: { requestId: 'r1', type: 'tool', tool: { name: 'pwsh', callId: 'c1' } } })
+    s = reducer(s, { type: 'streamEvent', e: { requestId: 'r1', type: 'tool', tool: { name: 'pwsh', callId: 'c1', ok: true } } })
+    s = reducer(s, { type: 'streamEvent', e: { requestId: 'r1', type: 'done', message: msg('a1', '回复', 'assistant') } })
+    expect(s.messages[0].tools).toEqual([{ name: 'pwsh', ok: true }])
+  })
+
   it('streamEvent error 设置错误并结束 streaming', () => {
     let s: State = reducer(initialState, { type: 'startStream', requestId: 'r1' })
     s = reducer(s, { type: 'streamEvent', e: { requestId: 'r1', type: 'error', error: '网络错误' } })
@@ -193,16 +218,6 @@ describe('chatStore reducer', () => {
       retry: { content: 'x', files: [{ name: 'a.txt', path: 'C:/a.txt' }], userVisible: false }
     })
     expect(next.errorRetry).toEqual({ content: 'x', files: [{ name: 'a.txt', path: 'C:/a.txt' }], userVisible: false })
-  })
-
-  it('error 事件的 retry 载荷透传 search 字段', () => {
-    const s = reducer(initialState, { type: 'startStream', requestId: 'r1' })
-    const next = reducer(s, {
-      type: 'streamEvent',
-      e: { requestId: 'r1', type: 'error', error: '网络错误' },
-      retry: { content: 'x', search: true, userVisible: false }
-    })
-    expect(next.errorRetry).toEqual({ content: 'x', search: true, userVisible: false })
   })
 
   it('streamEvent error 无载荷时 errorRetry 为 null', () => {
@@ -256,7 +271,7 @@ describe('chatStore reducer', () => {
     let s: State = reducer(initialState, { type: 'startStream', requestId: 'r1' })
     s = reducer(s, { type: 'petError', message: '桌宠窗口未找到' })
     expect(s.error).toBe('桌宠窗口未找到')
-    expect(s.streaming).toEqual({ requestId: 'r1', text: '' })
+    expect(s.streaming).toEqual({ requestId: 'r1', text: '', tools: [] })
   })
 
   it('fileProposal 事件：进入 proposal 状态，startStream 时清空', () => {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useState } from 'react'
+import { useCallback, useEffect, useReducer } from 'react'
 import type { FileAttachment, FileProposalEvent } from '../../shared/types'
 import { initialState, reducer } from './state/chatStore'
 import { ConversationList } from './components/ConversationList'
@@ -8,7 +8,6 @@ import { SettingsPage } from './components/SettingsPage'
 
 export default function App(): React.JSX.Element {
   const [state, dispatch] = useReducer(reducer, initialState)
-  const [searchDefault, setSearchDefault] = useState(false)
 
   const select = useCallback(async (id: string) => {
     const messages = await window.api.getMessages(id)
@@ -17,7 +16,6 @@ export default function App(): React.JSX.Element {
 
   useEffect(() => {
     let disposed = false
-    void window.api.getSettings().then(s => { if (!disposed) setSearchDefault(s.search.enabledDefault) })
     void window.api.listConversations().then(cs => {
       if (disposed) return
       dispatch({ type: 'init', conversations: cs })
@@ -40,13 +38,13 @@ export default function App(): React.JSX.Element {
     return () => { disposed = true; offStream(); offPetError(); offFileProposal(); window.removeEventListener('keydown', onKey) }
   }, [select])
 
-  const send = useCallback(async (content: string, images: string[], files: FileAttachment[], search: boolean) => {
+  const send = useCallback(async (content: string, images: string[], files: FileAttachment[]) => {
     if (!state.activeId) return
-    const r = await window.api.startReply({ conversationId: state.activeId, content, images, files, search })
+    const r = await window.api.startReply({ conversationId: state.activeId, content, images, files })
     if (!r.ok) {
       // 修复②：send 失败路径不落 user 消息，把本次 content 存入 error 的 retry 载荷供重试使用
-      // R26：载荷保留 images/files（带图/带文件消息重试不丢）；userVisible=false 表示气泡未上屏（Task 8⑦）
-      dispatch({ type: 'streamEvent', e: { requestId: '__none__', type: 'error', error: r.error }, retry: { content, images, files, search, userVisible: false } })
+      // R26：载荷保留 images/files（带图/带文件消息重试不丢）；userVisible=false 表示气泡未上屏
+      dispatch({ type: 'streamEvent', e: { requestId: '__none__', type: 'error', error: r.error }, retry: { content, images, files, userVisible: false } })
       return
     }
     if (r.requestId && r.userMessage) {
@@ -59,23 +57,19 @@ export default function App(): React.JSX.Element {
     if (!state.activeId) return
     // 修复②：优先使用 error 动作携带的 retry 载荷；无载荷时回退现有行为（找最后一条 user 消息）
     const last = [...state.messages].reverse().find(m => m.role === 'user')
-    const p = state.errorRetry ?? (last ? { content: last.content, images: last.images?.map(i => i.dataUrl), files: last.files, search: last.searched === true } : null)
+    const p = state.errorRetry ?? (last ? { content: last.content, images: last.images?.map(i => i.dataUrl), files: last.files } : null)
     if (!p || (!p.content && !(p.images && p.images.length > 0) && !(p.files && p.files.length > 0))) return
-    // 气泡是否已在界面/已落库：载荷存在按其标记；无载荷回退自 state 最后一条 user 消息，必然已上屏已落库
+    // 气泡是否已上屏：载荷存在按其标记；无载荷回退自 state 最后一条 user 消息，必然已上屏
     const userVisible = state.errorRetry ? state.errorRetry.userVisible === true : true
     void window.api.startReply({
-      conversationId: state.activeId, content: p.content, images: p.images, files: p.files, search: p.search === true,
-      // R23：气泡已在库时跳过主进程落库，避免重试导致 user 消息重复
-      skipUserAppend: userVisible
+      conversationId: state.activeId, content: p.content, images: p.images, files: p.files
     }).then(r => {
       if (!r.ok) {
         // 重试再次失败时同样携带载荷，保证可继续重试同一内容（userVisible 标记随载荷传递）
         if (r.error) dispatch({ type: 'streamEvent', e: { requestId: '__none__', type: 'error', error: r.error }, retry: { ...p, userVisible } })
       } else if (r.requestId) {
-        // Task 8⑦：首次失败发生在主进程落库前（气泡未上屏）时，重试成功后用主进程返回的 userMessage 补气泡
+        // 首次失败时气泡未上屏：重试成功后用主进程返回的 userMessage 补气泡；已上屏则不补（避免重复气泡）
         if (r.userMessage && !userVisible) dispatch({ type: 'appendUser', message: r.userMessage })
-        // R1-I1：气泡已上屏时改为回写最后一条 user 消息的搜索徽章（重搜后的新结果/新错误）
-        else if (r.userMessage && userVisible) dispatch({ type: 'patchLastUser', searched: r.userMessage.searched === true, searchError: r.userMessage.searchError })
         dispatch({ type: 'startStream', requestId: r.requestId })
       }
     })
@@ -128,8 +122,8 @@ export default function App(): React.JSX.Element {
             <MessageArea messages={state.messages} streaming={state.streaming} error={state.error}
               proposal={state.proposal} onApplyProposal={id => void applyProposal(id)} onRejectProposal={() => rejectProposal()}
               onRetry={retry} onDismissError={() => dispatch({ type: 'clearError' })} />
-            <Composer streaming={!!state.streaming} initialSearch={searchDefault}
-              onSend={(content, images, files, search) => void send(content, images, files, search)}
+            <Composer streaming={!!state.streaming}
+              onSend={(content, images, files) => void send(content, images, files)}
               onStop={() => { if (state.streaming) void window.api.stopReply(state.streaming.requestId) }} />
           </>
         ) : (

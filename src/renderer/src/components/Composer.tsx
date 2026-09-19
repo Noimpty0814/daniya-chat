@@ -1,26 +1,21 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import type { FileAttachment } from '../../../shared/types'
 
 export function Composer(props: {
   streaming: boolean
-  initialSearch: boolean
-  onSend(content: string, images: string[], files: FileAttachment[], search: boolean): void
+  onSend(content: string, images: string[], files: FileAttachment[]): void
   onStop(): void
 }): React.JSX.Element {
   const [text, setText] = useState('')
   const [images, setImages] = useState<string[]>([])
   const [files, setFiles] = useState<FileAttachment[]>([])
-  const [search, setSearch] = useState(props.initialSearch)
   const [shotMsg, setShotMsg] = useState('')
   const taRef = useRef<HTMLTextAreaElement>(null)
-
-  // R1-M3：getSettings 异步返回晚于挂载时同步初始勾选状态
-  useEffect(() => { setSearch(props.initialSearch) }, [props.initialSearch])
 
   const submit = (): void => {
     const t = text.trim()
     if ((!t && images.length === 0 && files.length === 0) || props.streaming) return
-    props.onSend(t, images, files, search)
+    props.onSend(t, images, files)
     setText(''); setImages([]); setFiles([])
   }
 
@@ -86,7 +81,6 @@ export function Composer(props: {
       />
       <div className="composer-actions">
         <span className="composer-hint">{shotMsg || 'Esc 收起窗口'}</span>
-        <button className={`shot-btn search-btn${search ? ' active' : ''}`} onClick={() => setSearch(!search)} disabled={props.streaming}>联网搜索</button>
         <button className="shot-btn" onClick={() => void pick()} disabled={props.streaming}>选文件</button>
         <button className="shot-btn" onClick={() => void capture()} disabled={props.streaming}>截屏</button>
         {props.streaming

@@ -2,7 +2,7 @@ import { useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
-import type { ChatMessage } from '../../../shared/types'
+import type { ChatMessage, ToolUse } from '../../../shared/types'
 import 'highlight.js/styles/github-dark.css'
 
 function CodeBlock({ className, children }: { className?: string; children?: React.ReactNode }): React.JSX.Element {
@@ -23,6 +23,21 @@ function CodeBlock({ className, children }: { className?: string; children?: Rea
   return <code className="inline-code">{children}</code>
 }
 
+/** 模型可见工具名 → 徽照搬中文文案（spec §8）；未知工具名原样显示 */
+const TOOL_LABELS: Record<string, string> = {
+  pwsh: '执行命令',
+  web_search: '联网搜索',
+  web_fetch: '读取网页'
+}
+
+/** 徽照搬文案与样式态：进行中（仅流式期间）→ 成功/失败；历史里无结果记录时显示中性文案 */
+function toolBadge(t: ToolUse, streaming: boolean): { text: string; state: 'pending' | 'ok' | 'fail' } {
+  const label = TOOL_LABELS[t.name] ?? t.name
+  if (t.ok === false) return { text: `${label}失败`, state: 'fail' }
+  if (t.ok === undefined && streaming) return { text: `正在${label}…`, state: 'pending' }
+  return { text: t.ok === true ? `已${label}` : label, state: 'ok' }
+}
+
 export function Message({ msg, streaming }: { msg: ChatMessage; streaming?: boolean }): React.JSX.Element {
   return (
     <div className={`msg msg-${msg.role}${streaming ? ' streaming' : ''}`}>
@@ -36,8 +51,13 @@ export function Message({ msg, streaming }: { msg: ChatMessage; streaming?: bool
           {msg.files.map((f, i) => <span key={`${f.path}-${i}`} className="file-chip" title={f.path}>{f.name}</span>)}
         </div>
       )}
-      {msg.searched && (
-        <div className="search-badge">{msg.searchError ? `搜索失败：${msg.searchError}` : '已联网搜索'}</div>
+      {msg.tools && msg.tools.length > 0 && (
+        <div className="tool-badges">
+          {msg.tools.map((t, i) => {
+            const b = toolBadge(t, streaming === true)
+            return <span key={`${t.name}-${i}`} className={`tool-badge tool-badge-${b.state}`} title={t.name}>{b.text}</span>
+          })}
+        </div>
       )}
       {msg.content && (
         <div className="msg-bubble">

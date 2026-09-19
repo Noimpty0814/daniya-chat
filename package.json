@@ -8,10 +8,12 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "start": "electron-vite preview",
-    "pack": "npm run build && electron-builder --win",
+    "pack": "npm run prepare:harness && npm run build && electron-builder --win",
+    "prepare:harness": "node scripts/prepare-harness.mjs",
     "test": "vitest run",
     "gen-icon": "node scripts/gen-icon.js",
-    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json"
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "dev:harness": "node harness/setup-dev-home.mjs && node harness/launch.mjs"
   },
   "build": {
     "appId": "com.daniya.chat",
@@ -28,6 +30,10 @@
       {
         "from": "resources/pet-helper.ps1",
         "to": "pet-helper.ps1"
+      },
+      {
+        "from": "build/harness-bundle",
+        "to": "harness"
       }
     ],
     "win": {

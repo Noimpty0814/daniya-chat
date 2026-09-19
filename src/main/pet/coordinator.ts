@@ -1,4 +1,4 @@
-import type { Emotion } from '../deepseek/emotion'
+import type { Emotion } from '../harness/emotion'
 import type { PetStatus } from '../../shared/types'
 
 export interface PetCoordinator {

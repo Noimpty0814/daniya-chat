@@ -9,3 +9,10 @@ dist/
 # 控制器临时启动器（勿提交勿删）
 daniya-launch.vbs
 daniya.ico
+# dsh harness 产物：profile 依赖、启动器写入的根配置、dev 用 Harness home
+harness/profile/node_modules/
+harness/profile/cordis.yml
+.dev-dsh-home/
+packages/daniya-bridge/lib/
+# T-5 打包暂存目录（scripts/prepare-harness.mjs 产物）
+build/

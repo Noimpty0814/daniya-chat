@@ -16,9 +16,12 @@ export function MessageArea(props: {
   return (
     <div className="messages">
       {props.messages.map(m => <Message key={m.id} msg={m} />)}
-      {props.streaming && props.streaming.text.length === 0 && <div className="thinking">达妮娅思考中…</div>}
-      {props.streaming && props.streaming.text.length > 0 && (
-        <Message msg={{ id: '__streaming__', role: 'assistant', content: props.streaming.text, createdAt: Date.now() }} streaming />
+      {props.streaming && props.streaming.text.length === 0 && props.streaming.tools.length === 0 && (
+        <div className="thinking">达妮娅思考中…</div>
+      )}
+      {props.streaming && (props.streaming.text.length > 0 || props.streaming.tools.length > 0) && (
+        <Message streaming
+          msg={{ id: '__streaming__', role: 'assistant', content: props.streaming.text, tools: props.streaming.tools, createdAt: Date.now() }} />
       )}
       {props.error && (
         <div className="error-banner">
