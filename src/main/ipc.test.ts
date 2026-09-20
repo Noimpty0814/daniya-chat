@@ -261,6 +261,27 @@ describe('会话 CRUD 与历史', () => {
     expect(msgs[1].content).not.toContain('{EMO:')
   })
 
+  it('getMessages：带文件发送的用户消息剥离 [文件] 注入块', async () => {
+    const { convId } = await newConversationWithKey()
+    const filePath = path.join(dir, 'note.txt')
+    fs.writeFileSync(filePath, '文件里的秘密')
+    const reg = await invoke<{ ok: boolean; files: { name: string; path: string }[] }>('file:register', { paths: [filePath] })
+    expect(reg.ok).toBe(true)
+
+    const { sender, events } = makeSender()
+    const r = await invoke<StartReplyResult>('chat:startReply', {
+      conversationId: convId, content: '读文件', files: reg.files
+    }, { sender })
+    expect(r.ok).toBe(true)
+    await waitEvent(events, e => e.type === 'done')
+
+    const msgs = await invoke<{ role: string; content: string }[]>('chat:getMessages', { id: convId })
+    const user = msgs.find(m => m.role === 'user')!
+    expect(user.content).toBe('读文件')
+    expect(user.content).not.toContain('[文件')
+    expect(user.content).not.toContain('文件里的秘密')
+  })
+
   it('首消息自动标题（B-5）：取首条内容 20 字；手动改名后不再覆盖', async () => {
     const { convId } = await newConversationWithKey()
     const { sender, events } = makeSender()

@@ -1,5 +1,6 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FileAttachment } from '../../../shared/types'
+import { DragCounter } from '../state/dragCounter'
 
 export function Composer(props: {
   streaming: boolean
@@ -10,6 +11,7 @@ export function Composer(props: {
   const [images, setImages] = useState<string[]>([])
   const [files, setFiles] = useState<FileAttachment[]>([])
   const [shotMsg, setShotMsg] = useState('')
+  const [dragActive, setDragActive] = useState(false)
   const taRef = useRef<HTMLTextAreaElement>(null)
 
   const submit = (): void => {
@@ -36,28 +38,51 @@ export function Composer(props: {
     if (error) setShotMsg(error)
   }
 
-  const register = async (paths: string[]): Promise<void> => {
-    if (paths.length === 0) return
-    const r = await window.api.registerFiles(paths)
-    if (r.files.length) {
-      if (files.length + r.files.length > 3) setShotMsg('最多附加 3 个文件')
-      setFiles([...files, ...r.files].slice(0, 3))
+  // 全窗口拖放：document 级捕获监听（拖到消息区/侧栏也生效），enter/leave 配对计数驱动高亮
+  useEffect(() => {
+    const counter = new DragCounter()
+    const hasFiles = (e: DragEvent): boolean => Array.from(e.dataTransfer?.types ?? []).includes('Files')
+    const onEnter = (e: DragEvent): void => { if (!hasFiles(e)) return; counter.enter(); setDragActive(counter.active) }
+    const onOver = (e: DragEvent): void => { if (hasFiles(e)) e.preventDefault() }
+    const onLeave = (e: DragEvent): void => { if (!hasFiles(e)) return; counter.leave(); setDragActive(counter.active) }
+    const onDrop = (e: DragEvent): void => {
+      counter.reset(); setDragActive(false)
+      if (!hasFiles(e)) return
+      e.preventDefault()
+      const paths = Array.from(e.dataTransfer?.files ?? [])
+        .map(f => window.api.getPathForFile(f))
+        .filter(Boolean)
+      if (paths.length === 0) return
+      void window.api.registerFiles(paths).then(r => {
+        if (r.files.length) {
+          if (files.length + r.files.length > 3) setShotMsg('最多附加 3 个文件')
+          setFiles([...files, ...r.files].slice(0, 3))
+        }
+        if (!r.ok && r.error) setShotMsg(r.error)
+      })
     }
-    if (!r.ok && r.error) setShotMsg(r.error)
-  }
+    document.addEventListener('dragenter', onEnter, true)
+    document.addEventListener('dragover', onOver, true)
+    document.addEventListener('dragleave', onLeave, true)
+    document.addEventListener('drop', onDrop, true)
+    return () => {
+      document.removeEventListener('dragenter', onEnter, true)
+      document.removeEventListener('dragover', onOver, true)
+      document.removeEventListener('dragleave', onLeave, true)
+      document.removeEventListener('drop', onDrop, true)
+    }
+  }, [files])
 
   const removeFile = (i: number): void => setFiles(files.filter((_, j) => j !== i))
 
   return (
-    <div className="composer"
-      onDragOver={e => e.preventDefault()}
-      onDrop={e => {
-        e.preventDefault()
-        const paths = Array.from(e.dataTransfer.files)
-          .map(f => window.api.getPathForFile(f))
-          .filter(Boolean)
-        void register(paths)
-      }}>
+    <>
+      {dragActive && (
+        <div className="drop-overlay">
+          <div className="drop-overlay-box">松开以附加文件（最多 3 个文本文件）</div>
+        </div>
+      )}
+      <div className="composer">
       {(images.length > 0 || files.length > 0) && (
         <div className="shot-previews">
           {images.map((u, i) => (
@@ -88,5 +113,6 @@ export function Composer(props: {
           : <button className="send-btn" disabled={!text.trim() && images.length === 0 && files.length === 0} onClick={submit}>发送</button>}
       </div>
     </div>
+    </>
   )
 }

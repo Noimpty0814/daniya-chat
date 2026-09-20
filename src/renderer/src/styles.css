@@ -59,6 +59,8 @@ button { font-family: inherit; cursor: pointer; }
 @keyframes blink { 50% { opacity: 0; } }
 .error-banner { display: flex; align-items: center; gap: 10px; background: #3a1f28; border: 1px solid var(--danger); color: #ffb3c0; border-radius: 8px; padding: 8px 12px; font-size: 13px; }
 .error-banner button { background: transparent; border: 1px solid var(--danger); color: #ffb3c0; border-radius: 6px; padding: 3px 10px; font-size: 12px; }
+.drop-overlay { position: fixed; inset: 0; z-index: 1000; pointer-events: none; display: flex; align-items: center; justify-content: center; background: rgba(23, 21, 31, .55); }
+.drop-overlay-box { border: 3px dashed var(--accent); border-radius: 16px; padding: 28px 48px; font-size: 17px; font-weight: 600; color: var(--text); background: var(--panel); box-shadow: 0 8px 40px rgba(0, 0, 0, .45); }
 .composer { border-top: 1px solid var(--border); padding: 12px 18px; background: var(--panel); }
 .composer textarea { width: 100%; resize: none; background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; color: var(--text); padding: 10px 12px; font-family: inherit; font-size: 14px; outline: none; }
 .composer textarea:focus { border-color: var(--accent); }

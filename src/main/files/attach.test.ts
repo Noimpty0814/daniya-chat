@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { registerFiles, buildFileContext, readFileForContext, isAuthorized, injectFilesIntoLastTurn, MAX_ATTACH_SIZE } from './attach'
+import { registerFiles, buildFileContext, readFileForContext, isAuthorized, injectFilesIntoLastTurn, stripFileContext, MAX_ATTACH_SIZE } from './attach'
 
 let dir: string
 beforeEach(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), 'daniya-attach-')) })
@@ -100,6 +100,27 @@ describe('buildFileContext / readFileForContext', () => {
     const out = readFileForContext(p)
     expect(Buffer.byteLength(out, 'utf8')).toBe(MAX_ATTACH_SIZE)
     expect(out.length).toBe(174_764)
+  })
+})
+
+describe('stripFileContext', () => {
+  it('剥离单个注入块并保留正文', () => {
+    const content = '看看这个\n\n[文件: a.txt（C:/tmp/a.txt）]\n文件正文\n[/文件]'
+    expect(stripFileContext(content)).toBe('看看这个')
+  })
+
+  it('剥离多个注入块', () => {
+    const content = '你好\n\n[文件: a.txt（C:/tmp/a.txt）]\nA\n[/文件]\n\n[文件: b.txt（C:/tmp/b.txt）]\nB\n[/文件]'
+    expect(stripFileContext(content)).toBe('你好')
+  })
+
+  it('无注入块：原样返回', () => {
+    expect(stripFileContext('普通消息')).toBe('普通消息')
+  })
+
+  it('正文与注入块之间无空行也能剥离（retry 现读路径同样格式）', () => {
+    const content = '开头[文件: x.txt（C:/tmp/x.txt）]\n内容\n[/文件]结尾'
+    expect(stripFileContext(content)).toBe('开头结尾')
   })
 })
 

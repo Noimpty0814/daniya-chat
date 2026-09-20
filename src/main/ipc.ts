@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import type { AppSettingsView, ChatMessage, ConversationMeta, FileProposalEvent, SearchHit, StreamEventMsg, StartReplyPayload, StartReplyResult, ToolBadge } from '../shared/types'
 import { loadSettings, saveSettings, toView, setApiKey, getApiKey, applyView, type AppSettings } from './settings'
 import { capturePrimaryScreen } from './screenshot'
-import { registerFiles, pickFiles, injectFilesIntoLastTurn } from './files/attach'
+import { registerFiles, pickFiles, injectFilesIntoLastTurn, stripFileContext } from './files/attach'
 import { createProposal, applyProposal, rejectProposal } from './files/apply'
 import { FileProposalParser, type ProposalResult } from './files/proposal'
 import { EmotionParser, type Emotion } from './harness/emotion'
@@ -458,6 +458,7 @@ export function registerIpc(opts: RegisterIpcOpts): void {
 function projectMessage(m: BridgeMessage, okByCall: Map<string, boolean>): ChatMessage {
   const role = m.role === 'assistant' ? 'assistant' : 'user'
   let content = typeof m.content === 'string' ? m.content : ''
+  if (role === 'user' && content) content = stripFileContext(content)
   if (role === 'assistant' && content) {
     const ep = new EmotionParser()
     const fp = new FileProposalParser()

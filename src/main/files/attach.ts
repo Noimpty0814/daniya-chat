@@ -78,3 +78,8 @@ export function injectFilesIntoLastTurn(turns: { role: string; content: string }
   if (!last || last.role !== 'user' || files.length === 0) return
   last.content = last.content + '\n\n' + buildFileContext(files)
 }
+
+/** 投影显示时剥离注入块（harness 历史里的 user 轮次含 [文件] 上下文，气泡不应显示） */
+export function stripFileContext(content: string): string {
+  return content.replace(/\n{0,2}\[文件: [^\]]*\]\n[\s\S]*?\[\/文件\]/g, '')
+}
