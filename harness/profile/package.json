@@ -4,7 +4,9 @@
   "private": true,
   "dsh": {
     "profile": {
-      "bundles": ["@deepseek-ai/dsh-sdk-minimal"]
+      "bundles": [
+        "@deepseek-ai/dsh-sdk-minimal"
+      ]
     }
   },
   "dependencies": {
@@ -20,5 +22,12 @@
     "@deepseek-ai/dsh-compaction-tool-result-pruner": "0.1.6-alpha.2",
     "@deepseek-ai/dsh-token-meter": "0.1.6-alpha.2",
     "daniya-bridge": "file:../../packages/daniya-bridge"
+  },
+  "allowScripts": {
+    "koffi@3.3.0": true,
+    "node-pty@1.2.0-beta.15": true,
+    "protobufjs@7.6.6": true,
+    "@deepseek-ai/dsh-subprocess-local@0.1.6-alpha.2": true,
+    "@google/genai@1.52.0": true
   }
 }
