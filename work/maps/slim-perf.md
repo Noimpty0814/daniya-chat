@@ -26,7 +26,7 @@
 - [x] spawn spec `verify-linux` — 已落地（PR #10）：verify-profile.mjs 断言平台化（win32→pwsh 集 / 非 win32→bash 集对称断言），verify/smoke 均支持可选 harness-root 参数（可对 `build/harness-bundle` 跑同一门禁）；Linux 实测 exit 0。win32 腿复跑在 windows-checklist.md §E
 - [x] 死依赖清单与可删性验证 — research 已验收合并（PR #5）→ `work/maps/slim-perf/dead-deps.md`：351 dead / 121 alive / 3 unknown，blocklist 353 项可直接贴入 prepare-harness.mjs；**裁剪名单须保住 Linux boot 面**已落实（node-pty/koffi/node-addon-system-linux 等全部判 alive 不入列）
 - [x] 首启物化拷贝是否可省 — research 已验收合并（PR #4）：拷贝可省/可缩水，推荐硬链接农场 → `work/maps/slim-perf/first-boot-copy.md`
-- [~] spawn spec `materialize-hardlink`（claimed: devin-local）：硬链接农场物化落地（方案 C；Windows 复核 WR-3 硬链接语义可在 spec 内标注待复核，不阻塞 Linux 实现与单测）
+- [x] spawn spec `materialize-hardlink` — 已落地（PR #11）：`fillStagingByLinks` 链接农场（mkdir+link、.stamp/cordis.yml 真实拷贝、任一 link 失败整树回退 cp），process.test.ts 21/21 含 inode 共享/写穿/EXDEV 回退用例；win32 NTFS 语义复核在 windows-checklist.md §G
 - [~] Windows 基线 checklist — task（claimed: devin-local）：给用户一份 pack 体积 + 冷启动 + 常驻内存测量步骤
 - [~] spawn spec slim-installer（claimed: devin-local）：死依赖裁剪落地——前置已齐（清单+blocklist 在 `work/maps/slim-perf/dead-deps.md`），spec 需含 win32 boot 复核步骤；验收门禁依赖 verify-linux 先落地
 
