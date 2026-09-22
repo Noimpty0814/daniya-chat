@@ -4,7 +4,7 @@
 
 ## 决策
 
-模型改文件不直接写盘：人设契约要求它产出 ```` ```daniya-file ```` fenced 块（JSON 提案），渲染层剥离该块并弹 diff 面板，用户确认后主进程才应用（自动 `.bak` 备份、原子写、失败可重试）。dsh 的 write/edit 工具不挂；模型的直写通道只有 `pwsh`，且被 `workspace-write` 沙箱围栏在工作目录。
+模型改文件不直接写盘：人设契约要求它产出 ```` ```daniya-file ```` fenced 块（JSON 提案），主进程 `FileProposalParser` 在流式文本中剥离该块、经 `file:proposal` 事件交给渲染层弹 diff 面板，用户确认后主进程才应用（自动 `.bak` 备份、原子写、失败可重试）。dsh 的 write/edit 工具不挂；模型的直写通道只有 `pwsh`，且被 `workspace-write` 沙箱围栏在工作目录。
 
 ## 理由
 
@@ -16,4 +16,4 @@
 - 依赖模型遵循格式约定（实测可靠，但见验收 E4：模型写文件永远走提案，`pwsh` 写路径要靠沙箱兜底）。
 - v1 只支持整文件替换；片段级 patch 协议是已知延期项。
 
-契约原文在 `packages/daniya-bridge/src/persona.ts`（FILE_CONTRACT，每轮随人设段注入）。
+契约原文在 `packages/daniya-bridge/src/contracts.ts`（FILE_CONTRACT，每轮由 `persona.ts` 随人设段注入）。

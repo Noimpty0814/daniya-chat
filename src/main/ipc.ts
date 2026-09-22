@@ -16,9 +16,10 @@ import type { PetCoordinator } from './pet/coordinator'
  * IPC 面（spec §5.3 映射）：通道名与载荷语义对渲染层保持不变，
  * 后端由旧 deepseek/search/storage 三件套换成 harness bridge：
  * - chat:startReply → ensure + session.create/resume + prompt（附件注入逻辑不变）
- * - chat:stopReply → cancel；stream.chunk → EmotionParser/FileProposalParser → delta/emotion/proposal
+ * - chat:stopReply → cancel；stream.chunk → EmotionParser/FileProposalParser → delta/proposal（情绪只驱动 pet，不进 chat:stream）
  * - tool.call/tool.result → chat:stream{tool} 徽照搬；error → 中文映射
  * - 会话 CRUD → registry ⨝ bridge session.*；历史由 harness 持有（无本地落库、无 MAX_CONTEXT）
+ * - pet:error 不经本文件：由 index.ts 的 pet 装配处推送（onError → webContents.send）
  */
 
 /** ipc 层对运行时的最小依赖面（HarnessRuntime 结构满足；测试可注入 fake） */
@@ -85,8 +86,6 @@ export function registerIpc(opts: RegisterIpcOpts): void {
   const liveSessions = new Set<string>()
   /** getMessages 缓存：降级版 chat:search 的"已加载消息"数据源 */
   const historyCache = new Map<string, ChatMessage[]>()
-  /** listConversations 最近一次 session.list 拼接出的 dsh 标题（降级搜索的标题源） */
-  const titleCache = new Map<string, string>()
   /** 无活动请求时的兜底通知出口（stray error 送达最近一个窗口） */
   let lastSender: WebContents | null = null
 
@@ -122,12 +121,11 @@ export function registerIpc(opts: RegisterIpcOpts): void {
   }
 
   /** stream.end / agent.status idle 兜底共用的收尾：冲刷 parser、发 done、清理 */
-  const finishRequest = (r: ActiveRequest, aborted: boolean): void => {
+  const finishRequest = (r: ActiveRequest): void => {
     const eEnd = r.emotionParser.end()
     if (eEnd.emotion) {
       r.emotion = eEnd.emotion
       pet().emotion(eEnd.emotion)
-      send(r, { type: 'emotion', emotion: eEnd.emotion })
     }
     let tail = ''
     if (eEnd.display) {
@@ -149,7 +147,7 @@ export function registerIpc(opts: RegisterIpcOpts): void {
       model: r.model || undefined,
       createdAt: Date.now()
     }
-    send(r, { type: 'done', message, emotion: r.emotion ?? undefined, aborted: aborted || undefined })
+    send(r, { type: 'done', message })
   }
 
   const failRequest = (r: ActiveRequest, error: string): void => {
@@ -168,7 +166,6 @@ export function registerIpc(opts: RegisterIpcOpts): void {
         if (emotion) {
           r.emotion = emotion
           pet().emotion(emotion)
-          send(r, { type: 'emotion', emotion })
         }
         if (display) {
           const out = r.fileParser.feed(display)
@@ -187,7 +184,7 @@ export function registerIpc(opts: RegisterIpcOpts): void {
         // 一个 turn 可能是 中间消息(带 toolCalls) → tool.* → 最终消息 多帧序列，
         // 首个 stream.end 就收尾会把后续 tool/流帧全部丢掉（B-6）。
         // 正常终态由 agent.status→idle 落地；aborted 终帧是 turn 级取消信号，可直接收尾。
-        if (params.aborted === true) finishRequest(r, true)
+        if (params.aborted === true) finishRequest(r)
         return
       }
       case 'tool.call': {
@@ -224,11 +221,10 @@ export function registerIpc(opts: RegisterIpcOpts): void {
         if (params.status !== 'idle') return
         // 流终态兜底：正常 stream.end 先行时此处只剩 pet.bubble 复位
         const r = findBySession(sessionId)
-        if (r) finishRequest(r, false)
+        if (r) finishRequest(r)
         else pet().bubble(false)
         return
       }
-      case 'session.event':
       default:
         return
     }
@@ -253,7 +249,8 @@ export function registerIpc(opts: RegisterIpcOpts): void {
 
   const toMeta = (e: { id: string; sessionId?: string; titleOverride?: string; createdAt: number; updatedAt: number }, dsh?: SessionSummary): ConversationMeta => ({
     id: e.id,
-    title: (e.titleOverride ?? titleCache.get(e.id) ?? dsh?.title ?? '') || NEW_CONVERSATION_TITLE,
+    // bridge 契约保证 dsh title 恒 ''（server.ts sessionList），标题只有 titleOverride 一个真源
+    title: e.titleOverride || NEW_CONVERSATION_TITLE,
     createdAt: e.createdAt,
     updatedAt: typeof dsh?.updatedAt === 'number' ? dsh.updatedAt : e.updatedAt
   })
@@ -269,10 +266,6 @@ export function registerIpc(opts: RegisterIpcOpts): void {
       } catch { /* harness 不在线时降级 registry-only */ }
     }
     const bySession = new Map(dshList.map(s => [s.sessionId, s]))
-    for (const e of entries) {
-      const d = e.sessionId ? bySession.get(e.sessionId) : undefined
-      if (d?.title) titleCache.set(e.id, d.title)
-    }
     return entries.map(e => toMeta(e, e.sessionId ? bySession.get(e.sessionId) : undefined))
   })
 
@@ -293,7 +286,6 @@ export function registerIpc(opts: RegisterIpcOpts): void {
       liveSessions.delete(entry.sessionId)
     }
     historyCache.delete(p.id)
-    titleCache.delete(p.id)
     registry.remove(p.id)
   })
 
@@ -326,7 +318,7 @@ export function registerIpc(opts: RegisterIpcOpts): void {
     if (!q) return []
     const hits: SearchHit[] = []
     for (const e of registry.list()) {
-      const title = e.titleOverride ?? titleCache.get(e.id) ?? NEW_CONVERSATION_TITLE
+      const title = e.titleOverride ?? NEW_CONVERSATION_TITLE
       if (title.toLowerCase().includes(q)) {
         hits.push({ conversationId: e.id, messageId: '', role: 'title', snippet: title })
       }

@@ -116,7 +116,7 @@ const handlers = {
   'session.resume': (p) => {
     const s = ensureSession(p.sessionId)
     if (!s) throw new Error('session not found')
-    return { ok: true, history: s.messages }
+    return { ok: true }
   },
   'session.list': () => [...sessions.values()].map(s => ({ sessionId: s.sessionId, title: s.title, updatedAt: s.updatedAt })),
   'session.history': (p) => {

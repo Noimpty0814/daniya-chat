@@ -33,7 +33,7 @@ stdout 只写协议帧（一行一个 JSON 对象）；一切诊断走 stderr。
 | --- | --- | --- | --- |
 | `initialize` | `{workdir, model}` | `{ok}` | 校验 workdir 绝对化、`llm.resolveCallConfig` 路由、附件存储与持久化就绪；等 `loader.await()` 后才应答。可重复调用刷新 workdir/model |
 | `session.create` | `{}` | `{sessionId}` | `ctx.agents.create`：`meta.cwd=workdir`、`agentOptions={provider,model}`、setup 写沙箱+人设段。id 形如 `daniya-<uuid>` |
-| `session.resume` | `{sessionId}` | `{ok, history}` | `agents.resume({resumeSessionId})`；已活会话直接返回投影历史；同 id 并发去重 |
+| `session.resume` | `{sessionId}` | `{ok}` | `agents.resume({resumeSessionId})`；已活会话命中注册表即回 ok；同 id 并发去重（历史由 `session.history` 独立投影） |
 | `session.list` | `{}` | `[{sessionId,title,updatedAt}]` | 持久层快照 ∪ 未落盘活会话，按 updatedAt 倒序。`title` 恒 `''`（显示名由主进程 conversations 登记簿自持） |
 | `session.history` | `{sessionId}` | `{messages: BridgeMessage[]}` | 活会话走 `session.surface` + `deriveEventMessage`；落盘会话 `sessionPersistence.open(id,'read')` 后 `foldSurface` 重放 |
 | `session.delete` | `{sessionId}` | `{ok}` | dispose 本桥接的活 agent。**持久层无删除 API**：存储目录保留（见「限制」） |
@@ -43,7 +43,7 @@ stdout 只写协议帧（一行一个 JSON 对象）；一切诊断走 stderr。
 
 `BridgeMessage`：`{id, role: 'user'|'assistant'|'tool', content, images?, files?, toolCalls?, model?, createdAt}`；`createdAt` 取事件时间。
 
-### 通知（7）
+### 通知（6）
 
 | 通知 | 参数 | 事件来源 |
 | --- | --- | --- |
@@ -53,13 +53,12 @@ stdout 只写协议帧（一行一个 JSON 对象）；一切诊断走 stderr。
 | `tool.result` | `{sessionId, callId, ok, preview}` | `tool/result`；`ok = !isError`，preview ≤500 字符 |
 | `agent.status` | `{sessionId, status}` | `agent/status` 直传 |
 | `error` | `{sessionId?, message}` | `agent/error` 与终态 `agent/request-error`（后者 waterfall 只观察不接管，按 `turn:step:message` 去重随后的 `agent/error`）；桥级错误（初始化、沙箱写入被拒）无 `sessionId` |
-| `session.event` | `{sessionId, event}` | `session/event` 原样透传（调试/扩展消费） |
 
 只转发本桥接注册的会话；`assistant/attempt` 与 `abandoned` 终帧不构成可见回复，不发 `stream.end`（取消场景由 `turn/end{aborted}` 兜底）。
 
 ## 人设段
 
-每个会话的 agent setup 里，经 `agent.ctx.systemPrompt.section` 注册名为 `deployment:persona-prefix` 的段——按 dsh-scope 遮蔽规则盖掉 sdk-minimal 部署的通用 personaPrefix。段文本每次组装重读 settings：`systemPrompt` 字段 + `EMOTION_CONTRACT` + `FILE_CONTRACT`（逐字复制自旧 `deepseek/client.ts`）+ `用户当前工作目录：<workdir>`，`\n\n` 相连；`interpolate:false` 保留 `{{…}}` 字面量。settings 缺失/损坏/字段缺失时人设为空串，契约与工作目录行仍输出。注册随 agent 卸载自动回收；非本桥接的 agent 不受影响。
+每个会话的 agent setup 里，经 `agent.ctx.systemPrompt.section` 注册名为 `deployment:persona-prefix` 的段——按 dsh-scope 遮蔽规则盖掉 sdk-minimal 部署的通用 personaPrefix。段文本每次组装重读 settings：`systemPrompt` 字段 + `EMOTION_CONTRACT` + `FILE_CONTRACT`（旧引擎时代定稿的原文，逐字保留）+ `用户当前工作目录：<workdir>`，`\n\n` 相连；`interpolate:false` 保留 `{{…}}` 字面量。settings 缺失/损坏/字段缺失时人设为空串，契约与工作目录行仍输出。注册随 agent 卸载自动回收；非本桥接的 agent 不受影响。
 
 ## 沙箱
 

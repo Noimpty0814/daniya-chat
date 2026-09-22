@@ -1,5 +1,5 @@
 /**
- * 文本契约 —— 逐字复制自 `src/main/deepseek/client.ts`（旧引擎退役前的原文）。
+ * 文本契约 —— 旧 deepseek 引擎时代定稿的原文，逐字保留（该引擎已整体退役，无现存对应文件）。
  * 这两个常量是模型-facing 技术契约：一个字符也不允许改写，包括 markdown 与空行。
  * 人设卡可编辑部分不在此处：它来自 settings.json 的 `systemPrompt` 字段。
  *

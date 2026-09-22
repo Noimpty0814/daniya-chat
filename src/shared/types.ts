@@ -27,12 +27,10 @@ export interface AppSettingsView {
 export interface ToolBadge { name: string; callId: string; ok?: boolean; preview?: string }
 export interface StreamEventMsg {
   requestId: string
-  type: 'delta' | 'emotion' | 'done' | 'error' | 'tool'
+  type: 'delta' | 'done' | 'error' | 'tool'
   delta?: string
-  emotion?: string
   message?: ChatMessage
   error?: string
-  aborted?: boolean
   tool?: ToolBadge
 }
 export interface StartReplyPayload {

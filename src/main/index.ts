@@ -4,7 +4,6 @@ import { registerIpc } from './ipc'
 import { loadSettings, getApiKey, type AppSettings } from './settings'
 import { createNullPet, type PetCoordinator } from './pet/coordinator'
 import { createPipePet } from './pet/pipe-pet'
-import { petConfigChanged } from './pet/pet-settings'
 import { ConversationRegistry } from './harness/conversations'
 import { HarnessRuntime, defaultHarnessSpec } from './harness/process'
 import type { PetSettings } from '../shared/types'
@@ -74,6 +73,12 @@ function createTray(): void {
     { type: 'separator' },
     { label: '退出', click: () => { quitting = true; app.quit() } }
   ]))
+}
+
+/** I2：仅 enabled/exePath/exeName 变化才需重建协调器（其余 pet 配置改动只更新映射） */
+function petConfigChanged(prev: PetSettings | null, next: PetSettings): boolean {
+  if (!prev) return true
+  return prev.enabled !== next.enabled || prev.exePath !== next.exePath || prev.exeName !== next.exeName
 }
 
 function applyPetSettings(s: AppSettings): void {

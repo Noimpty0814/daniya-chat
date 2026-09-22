@@ -30,12 +30,11 @@ describe('ConversationRegistry', () => {
     expect(reg.list()).toEqual([])
   })
 
-  it('setSessionId 回填会话映射；findBySessionId 反查', () => {
+  it('setSessionId 回填会话映射', () => {
     const reg = new ConversationRegistry(file)
     const a = reg.create()
     reg.setSessionId(a.id, 'sess-1')
     expect(reg.get(a.id)?.sessionId).toBe('sess-1')
-    expect(reg.findBySessionId('sess-1')?.id).toBe(a.id)
   })
 
   it('getOrCreate：不存在则按给定 id 补建', () => {

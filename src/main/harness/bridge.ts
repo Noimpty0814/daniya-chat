@@ -34,7 +34,7 @@ export class BridgeTransportError extends BridgeError {
   constructor(message = 'harness 连接中断') { super('BRIDGE_TRANSPORT', message) }
 }
 
-/** session.history/session.resume 返回的投影消息（daniya-bridge history.ts 的线格式） */
+/** session.history 返回的投影消息（daniya-bridge history.ts 的线格式） */
 export interface BridgeMessage {
   id?: string
   /** 'tool' 为工具结果消息（含 tool-result 块），用户可见历史应过滤 */
@@ -111,7 +111,7 @@ export class Bridge {
     })
   }
 
-  /** 订阅对端通知（stream.chunk / stream.end / tool.call / tool.result / error / agent.status / session.event）。 */
+  /** 订阅对端通知（stream.chunk / stream.end / tool.call / tool.result / error / agent.status）。 */
   onNotification(fn: (method: string, params: Json) => void): () => void {
     this.emitter.on('notification', fn)
     return () => { this.emitter.off('notification', fn) }

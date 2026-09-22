@@ -3,7 +3,7 @@
  *
  * 传输本体复用 `@deepseek-ai/dsh-sdk-protocol` 的 `JsonRpcLineTransport`
  * （同一套按行分帧语义：非法行忽略、`-32601`/`-32603`、stdout 只写协议帧、
- * 入向通知无处理器则丢弃）。本文件固定 daniya 侧的 9 个请求方法与 7 种
+ * 入向通知无处理器则丢弃）。本文件固定 daniya 侧的 9 个请求方法与 6 种
  * 通知的参数/结果类型，供 server 实现与测试共同引用。
  *
  * stdin EOF 的退出语义不在传输层：插件层按 sdk 参照接线（见 index.ts）。
@@ -67,7 +67,7 @@ export interface SessionSummary {
   updatedAt: number
 }
 
-// ---- 通知（7 种） ----
+// ---- 通知（6 种） ----
 
 /** spec §5.2 的全部出向通知方法名。 */
 export type BridgeNotificationMethod =
@@ -77,7 +77,6 @@ export type BridgeNotificationMethod =
   | 'tool.result'
   | 'agent.status'
   | 'error'
-  | 'session.event'
 
 /** `stream.chunk`：可见文本增量。`turn` 取帧所属 turn（start 帧登记）。 */
 export interface StreamChunkNotification {
@@ -121,19 +120,13 @@ export interface ErrorNotification {
   message: string
 }
 
-/** `session.event`：原始 `SessionEvent` 透传（便于调试/未来扩展消费）。 */
-export interface SessionEventNotification {
-  sessionId: string
-  event: unknown
-}
-
 // ---- 结果类型 ----
 
 /** 各请求方法的结果类型索引（`shutdown` 与 `session.delete` 等以 `{ok:true}` 回执）。 */
 export interface BridgeResultMap {
   'initialize': { ok: true }
   'session.create': { sessionId: string }
-  'session.resume': { ok: true; history: BridgeMessage[] }
+  'session.resume': { ok: true }
   'session.list': SessionSummary[]
   'session.history': { messages: BridgeMessage[] }
   'session.delete': { ok: true }
