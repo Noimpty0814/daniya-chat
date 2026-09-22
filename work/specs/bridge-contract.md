@@ -1,5 +1,7 @@
 # Spec: bridge-contract — bridge 线协议契约承重化（单一类型真相 + 类型化门面）
 
+Dispatched: daniya-chat@feat/bridge-contract — 2026-09-22 — fairybox:spec-bridge-contract
+
 依赖：`hygiene-sweep` 已合入 main（`session.event` 通知已删、`session.resume` 只回 `{ok:true}`、`StreamEventMsg` 死字段已清）。本票在其后的契约面上施工；派发前确认 feat/hygiene-sweep 已合并，分支从合并后的 main 切。
 
 ## Problem
