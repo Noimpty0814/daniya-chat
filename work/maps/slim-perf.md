@@ -19,13 +19,14 @@
 - 兼容性口径：开发/验证面兼容 Linux（非视觉验证全部可跑），产品保持 Windows-only；fairybox 即用户的 Ubuntu 远端服务器
 - Linux boot 实测（wsl-local-0922）：**harness 在 Linux 完整 boot 成功**，35 entries ACTIVE、4 服务全解析、sandbox=workspace-write 生效、工具集 `[bash, web_fetch, web_search]`（cordis jsExpr 平台分支自动 pwsh↔bash 切换）；boot+断言+shutdown 全程 **0.51s** → harness boot 不是冷启动瓶颈，瓶颈在 Electron 侧与首启物化
 - 验证脚本缺口：`verify-profile.mjs` 断言 Windows 写死（persistent-pwsh 须 ACTIVE、bash 须不 ACTIVE、工具集含 pwsh）→ Linux 上正确行为被判失败，需平台化断言后才可作裁剪兜底
+- 死依赖判定已交付（feat/dead-deps-scan，`work/maps/slim-perf/dead-deps.md`）：linux 树 475 包实测 **351 dead / 121 alive / 3 unknown**，7 组累积删后 verify 恰 4 平台失败 + smoke 11 PASS；blocklist 353 项（win32 可裁 ~548MB/643MB）；unknown = sharp-wasm32/emnapi/node-addon-api；win32 boot 复核为 follow-up。另实测 ACTIVE 条目为 **36**（非 35，`include` 行计入口径差异）
 
 ## Frontier
 - [ ] spawn spec `verify-linux`：verify-profile.mjs 断言按 process.platform 分支（win32→pwsh 集 / linux→bash 集），并纳入 CI 可跑面 —— 阻塞项：它是"死依赖裁剪"验收的兜底工具
-- [ ] 死依赖清单与可删性验证 — research：逐包判定是否在 cordis 激活面/被 require 链触达（libreoffice-kit、dsh-web-app、otel、pi-ai、openai、anthropic、genai、octokit、aws-sdk、mcp、acp、session-query-sqlite、tool-fs-search/ripgrep…）；候选删法 = prepare-harness.mjs 加 blocklist + verify-profile.mjs 兜底；**裁剪名单须保住 Linux boot 面**（win32 专属负载 linux 树里没有，但其 JS 上游包在——可先在 linux 树删目录+verify 探路）
+- [x] 死依赖清单与可删性验证 — research → 已交付 `work/maps/slim-perf/dead-deps.md`（feat/dead-deps-scan）：351 dead / 121 alive / 3 unknown，blocklist 353 项可直接贴入 prepare-harness.mjs；**裁剪名单须保住 Linux boot 面**已落实（node-pty/koffi/node-addon-system-linux 等全部判 alive 不入列）
 - [ ] 首启物化拷贝是否可省 — research：读 process.ts 物化逻辑，回答 B-8 为何拷到 %APPDATA% 而非就地运行；若可省则同时消掉 A 段性能和双倍磁盘占用
 - [ ] Windows 基线 checklist — task：给用户一份 pack 体积 + 冷启动 + 常驻内存测量步骤
-- [ ] spawn spec slim-installer：死依赖裁剪落地（依赖"死依赖清单"结论）
+- [ ] spawn spec slim-installer：死依赖裁剪落地——前置已齐（清单+blocklist 在 `work/maps/slim-perf/dead-deps.md`），spec 需含 win32 boot 复核步骤
 
 ## Fog
 - 常驻内存/CPU 的可疑来源（harness 常驻进程、pet-helper 轮询、渲染层）——等基线
