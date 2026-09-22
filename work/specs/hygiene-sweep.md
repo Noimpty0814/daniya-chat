@@ -1,5 +1,7 @@
 # Spec: hygiene-sweep — dsh 迁移残留与线协议死代码清扫
 
+Dispatched: daniya-chat@feat/hygiene-sweep — 2026-09-22 — fairybox:spec-hygiene-sweep
+
 清扫票：逐条删除已证实的死代码/投机通路、收窄线协议、修正漂移注释。不改任何行为语义（除 Decisions 中显式列出的协议收窄——两侧同仓同步改，无第三方消费者）。
 
 ## Problem
