@@ -1,5 +1,7 @@
 # Spec: dead-deps-scan — dsh 物化依赖树的死依赖判定清单
 
+Dispatched: daniya-chat@feat/dead-deps-scan — 2026-09-22 — fairybox:spec-dead-deps-scan
+
 研究票：交付物是一份带实测证据的判定报告，不改生产代码。属于 effort `work/maps/slim-perf.md`（体积/性能优化，底线"零冗余"）。
 
 ## Problem

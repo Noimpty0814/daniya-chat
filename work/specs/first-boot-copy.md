@@ -1,5 +1,7 @@
 # Spec: first-boot-copy — 首启物化拷贝是否可省的判定与方案设计
 
+Dispatched: daniya-chat@feat/first-boot-copy — 2026-09-22 — fairybox:spec-first-boot-copy
+
 研究票：交付物是一份带代码级证据的判定与方案报告，不改生产代码。属于 effort `work/maps/slim-perf.md`（体积/性能优化）。
 
 ## Problem

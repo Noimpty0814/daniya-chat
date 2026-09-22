@@ -22,8 +22,8 @@
 
 ## Frontier
 - [ ] spawn spec `verify-linux`：verify-profile.mjs 断言按 process.platform 分支（win32→pwsh 集 / linux→bash 集），并纳入 CI 可跑面 —— 阻塞项：它是"死依赖裁剪"验收的兜底工具
-- [ ] 死依赖清单与可删性验证 — research：逐包判定是否在 cordis 激活面/被 require 链触达（libreoffice-kit、dsh-web-app、otel、pi-ai、openai、anthropic、genai、octokit、aws-sdk、mcp、acp、session-query-sqlite、tool-fs-search/ripgrep…）；候选删法 = prepare-harness.mjs 加 blocklist + verify-profile.mjs 兜底；**裁剪名单须保住 Linux boot 面**（win32 专属负载 linux 树里没有，但其 JS 上游包在——可先在 linux 树删目录+verify 探路）
-- [ ] 首启物化拷贝是否可省 — research：读 process.ts 物化逻辑，回答 B-8 为何拷到 %APPDATA% 而非就地运行；若可省则同时消掉 A 段性能和双倍磁盘占用
+- [~] 死依赖清单与可删性验证 — research `fairybox:spec-dead-deps-scan`：spec `work/specs/dead-deps-scan.md` 已派发，报告落 `work/maps/slim-perf/dead-deps.md`
+- [~] 首启物化拷贝是否可省 — research `fairybox:spec-first-boot-copy`：spec `work/specs/first-boot-copy.md` 已派发，报告落 `work/maps/slim-perf/first-boot-copy.md`
 - [ ] Windows 基线 checklist — task：给用户一份 pack 体积 + 冷启动 + 常驻内存测量步骤
 - [ ] spawn spec slim-installer：死依赖裁剪落地（依赖"死依赖清单"结论）
 
