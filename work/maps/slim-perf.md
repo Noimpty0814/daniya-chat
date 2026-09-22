@@ -23,7 +23,7 @@
 - 死依赖判定已交付（feat/dead-deps-scan，`work/maps/slim-perf/dead-deps.md`）：linux 树 475 包实测 **351 dead / 121 alive / 3 unknown**，7 组累积删后 verify 恰 4 平台失败 + smoke 11 PASS；blocklist 353 项（win32 可裁 ~548MB/643MB）；unknown = sharp-wasm32/emnapi/node-addon-api；win32 boot 复核为 follow-up。另实测 ACTIVE 条目为 **36**（非 35，`include` 行计入口径差异）
 
 ## Frontier
-- [~] spawn spec `verify-linux`（claimed: devin-local）：verify-profile.mjs 断言按 process.platform 分支（win32→pwsh 集 / 非 win32→bash 集）——阻塞项：它是"死依赖裁剪"验收的兜底工具。仓库无 CI 设施，"CI 可跑面"落实为非交互 pass/fail 门禁
+- [x] spawn spec `verify-linux` — 已落地（PR #10）：verify-profile.mjs 断言平台化（win32→pwsh 集 / 非 win32→bash 集对称断言），verify/smoke 均支持可选 harness-root 参数（可对 `build/harness-bundle` 跑同一门禁）；Linux 实测 exit 0。win32 腿复跑在 windows-checklist.md §E
 - [x] 死依赖清单与可删性验证 — research 已验收合并（PR #5）→ `work/maps/slim-perf/dead-deps.md`：351 dead / 121 alive / 3 unknown，blocklist 353 项可直接贴入 prepare-harness.mjs；**裁剪名单须保住 Linux boot 面**已落实（node-pty/koffi/node-addon-system-linux 等全部判 alive 不入列）
 - [x] 首启物化拷贝是否可省 — research 已验收合并（PR #4）：拷贝可省/可缩水，推荐硬链接农场 → `work/maps/slim-perf/first-boot-copy.md`
 - [~] spawn spec `materialize-hardlink`（claimed: devin-local）：硬链接农场物化落地（方案 C；Windows 复核 WR-3 硬链接语义可在 spec 内标注待复核，不阻塞 Linux 实现与单测）
