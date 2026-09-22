@@ -10,7 +10,10 @@ const FIXTURE = fileURLToPath(new URL('./fixtures/fake-bridge.mjs', import.meta.
 
 let dir: string
 beforeEach(() => { dir = fs.mkdtempSync(path.join(os.tmpdir(), 'daniya-harness-')) })
-afterEach(() => fs.rmSync(dir, { recursive: true, force: true }))
+afterEach(() => {
+  vi.restoreAllMocks()
+  fs.rmSync(dir, { recursive: true, force: true })
+})
 
 function makeRuntime(overrides: Partial<ConstructorParameters<typeof HarnessRuntime>[0]> = {}) {
   return new HarnessRuntime({
@@ -237,6 +240,68 @@ describe('ensureHarnessMaterialized', () => {
     await ensureHarnessMaterialized(tpl, target)
     expect(fs.existsSync(stale)).toBe(false)
     expect(fs.existsSync(path.join(target, 'launch.mjs'))).toBe(true) // 复用路径未动
+  })
+
+  it('链接农场物化：普通文件与模板共享 inode，目录结构完整', async () => {
+    const tpl = path.join(dir, 'tpl')
+    fs.mkdirSync(path.join(tpl, 'profile', 'sub'), { recursive: true })
+    fs.mkdirSync(path.join(tpl, 'runtime'), { recursive: true })
+    fs.writeFileSync(path.join(tpl, 'launch.mjs'), '// x')
+    fs.writeFileSync(path.join(tpl, '.stamp'), 'stamp-v1')
+    fs.writeFileSync(path.join(tpl, 'runtime', 'node.exe'), 'bin')
+    fs.writeFileSync(path.join(tpl, 'profile', 'sub', 'file.js'), 'x')
+    const target = path.join(dir, 'target')
+
+    await ensureHarnessMaterialized(tpl, target)
+
+    // 硬链接产物：与模板对应文件同 inode
+    for (const rel of ['launch.mjs', path.join('runtime', 'node.exe'), path.join('profile', 'sub', 'file.js')]) {
+      expect(fs.statSync(path.join(target, rel)).ino).toBe(fs.statSync(path.join(tpl, rel)).ino)
+    }
+    // 目录结构完整可遍历
+    expect(fs.statSync(path.join(target, 'runtime')).isDirectory()).toBe(true)
+    expect(fs.statSync(path.join(target, 'profile', 'sub')).isDirectory()).toBe(true)
+  })
+
+  it('.stamp 与 cordis.yml 真实拷贝：inode 独立、内容一致，改写不穿透模板', async () => {
+    const tpl = path.join(dir, 'tpl')
+    fs.mkdirSync(path.join(tpl, 'profile'), { recursive: true })
+    fs.writeFileSync(path.join(tpl, 'launch.mjs'), '// x')
+    fs.writeFileSync(path.join(tpl, '.stamp'), 'stamp-v1')
+    fs.writeFileSync(path.join(tpl, 'profile', 'cordis.yml'), '# cfg')
+    const target = path.join(dir, 'target')
+
+    await ensureHarnessMaterialized(tpl, target)
+
+    for (const rel of ['.stamp', path.join('profile', 'cordis.yml')]) {
+      expect(fs.statSync(path.join(target, rel)).ino).not.toBe(fs.statSync(path.join(tpl, rel)).ino)
+      expect(fs.readFileSync(path.join(target, rel), 'utf8')).toBe(fs.readFileSync(path.join(tpl, rel), 'utf8'))
+    }
+    // cordis.yml 是运行时截断重写点：物化树改写不得落到模板 inode（真实拷贝语义）
+    fs.writeFileSync(path.join(target, 'profile', 'cordis.yml'), '# rewritten')
+    expect(fs.readFileSync(path.join(tpl, 'profile', 'cordis.yml'), 'utf8')).toBe('# cfg')
+  })
+
+  it('link 失败（EXDEV 跨卷）→ 整树回退真实拷贝：产物可用、无 staging 残留', async () => {
+    const tpl = path.join(dir, 'tpl')
+    fs.mkdirSync(path.join(tpl, 'profile'), { recursive: true })
+    fs.writeFileSync(path.join(tpl, 'launch.mjs'), '// x')
+    fs.writeFileSync(path.join(tpl, '.stamp'), 'stamp-v1')
+    fs.writeFileSync(path.join(tpl, 'profile', 'cordis.yml'), '# cfg')
+    const target = path.join(dir, 'target')
+
+    vi.spyOn(fs.promises, 'link').mockRejectedValue(
+      Object.assign(new Error('cross-device link not permitted'), { code: 'EXDEV' }))
+    const p = await ensureHarnessMaterialized(tpl, target)
+    expect(p).toBe(target)
+
+    // 产物为真实拷贝：inode 不与模板共享、内容完整
+    expect(fs.statSync(path.join(target, 'launch.mjs')).ino)
+      .not.toBe(fs.statSync(path.join(tpl, 'launch.mjs')).ino)
+    expect(fs.readFileSync(path.join(target, 'launch.mjs'), 'utf8')).toBe('// x')
+    expect(fs.readFileSync(path.join(target, '.stamp'), 'utf8')).toBe('stamp-v1')
+    // 半棵链接农场 staging 已被清除，无 .tmp-* 残留
+    expect(fs.readdirSync(dir).filter(e => e.startsWith('target.tmp-'))).toEqual([])
   })
 
   it('物化期间回调 active true→false；复用路径不触发', async () => {
