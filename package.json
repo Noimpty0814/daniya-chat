@@ -10,6 +10,7 @@
     "start": "electron-vite preview",
     "pack": "npm run prepare:harness && npm run build && electron-builder --win",
     "prepare:harness": "node scripts/prepare-harness.mjs",
+    "verify:bundle": "node harness/verify-profile.mjs build/harness-bundle && node harness/smoke-bridge.mjs build/harness-bundle",
     "test": "vitest run",
     "gen-icon": "node scripts/gen-icon.js",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
