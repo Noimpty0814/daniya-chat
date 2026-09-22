@@ -72,7 +72,7 @@ packages/
 harness/
 └── profile/        # daniya profile 模板（bundle + cordis.patch.yml 定制）
 resources/          # 图标、桌宠 PowerShell 助手
-docs/               # 设计文档与实施计划
+docs/adr/           # 架构决策记录（dsh 迁移、提案契约等）
 ```
 
 ## 已知事项

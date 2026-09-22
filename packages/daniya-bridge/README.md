@@ -2,7 +2,7 @@
 
 daniya-chat 自研 dsh 插件。在 harness 子进程内独占 stdin/stdout 跑按行 JSON-RPC 2.0，把 dsh 进程内事件面桥给 Electron 主进程；并在每个会话的 agent setup 里注册达妮娅人设段、写入 `workspace-write` 沙箱模式。
 
-协议与职责定义见 `docs/superpowers/specs/2026-09-18-dsh-refactor-design.md` §5。
+迁移决策见 `docs/adr/0001-dsh-runtime.md`；协议即下文表格，本文档为准。
 
 ## 插件形态
 

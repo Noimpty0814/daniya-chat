@@ -5,7 +5,7 @@ Electron desktop AI chat app (React renderer + main process + `packages/daniya-b
 ## Coordination
 
 - `work/` holds in-flight coordination artifacts: `work/specs/*.md` are work orders (deleted when their work lands), `work/maps/*.md` are effort maps. They are committed on `main` so every session shares them. Nothing in `work/` is permanent documentation.
-- `docs/` holds only what stays true after the work lands: `docs/adr/` for hard-to-reverse decisions. (`docs/superpowers/` predates this convention and is unrelated.)
+- `docs/` holds only what stays true after the work lands: `docs/adr/` for hard-to-reverse decisions.
 - `CONTEXT.md` is the project vocabulary (maintained by `/align`). Use its terms when naming things.
 - Non-trivial work flows through the spec pipeline: `/align` → `/to-spec` → `/dispatch` (remote agent host) or `/execute-spec` (local) → `/review`. Branch `feat/<name>` pairs with `work/specs/<name>.md`. Dispatched sessions always run SWE-2 Max.
 
