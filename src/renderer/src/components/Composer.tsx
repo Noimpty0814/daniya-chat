@@ -4,6 +4,8 @@ import { MAX_ATTACH_FILES } from '../../../shared/consts'
 import { DragCounter } from '../state/dragCounter'
 
 export function Composer(props: {
+  /** 当前会话 id（file:register/file:pick 授权按会话记账）；App 仅在 activeId 存在时渲染本组件 */
+  conversationId: string
   streaming: boolean
   onSend(content: string, images: string[], files: FileAttachment[]): void
   onStop(): void
@@ -37,7 +39,7 @@ export function Composer(props: {
   }
 
   const pick = async (): Promise<void> => {
-    const { files: picked, error } = await window.api.pickFiles()
+    const { files: picked, error } = await window.api.pickFiles(props.conversationId)
     addFiles(picked)
     if (error) setShotMsg(error)
   }
@@ -57,7 +59,7 @@ export function Composer(props: {
         .map(f => window.api.getPathForFile(f))
         .filter(Boolean)
       if (paths.length === 0) return
-      void window.api.registerFiles(paths).then(r => {
+      void window.api.registerFiles(props.conversationId, paths).then(r => {
         addFiles(r.files)
         if (!r.ok && r.error) setShotMsg(r.error)
       })
@@ -72,7 +74,7 @@ export function Composer(props: {
       document.removeEventListener('dragleave', onLeave, true)
       document.removeEventListener('drop', onDrop, true)
     }
-  }, [files])
+  }, [files, props.conversationId])
 
   const removeFile = (i: number): void => setFiles(files.filter((_, j) => j !== i))
 

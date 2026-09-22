@@ -122,7 +122,7 @@ export default function App(): React.JSX.Element {
             <MessageArea messages={state.messages} streaming={state.streaming} error={state.error}
               proposal={state.proposal} onApplyProposal={id => void applyProposal(id)} onRejectProposal={() => rejectProposal()}
               onRetry={retry} onDismissError={() => dispatch({ type: 'clearError' })} />
-            <Composer streaming={!!state.streaming}
+            <Composer conversationId={state.activeId} streaming={!!state.streaming}
               onSend={(content, images, files) => void send(content, images, files)}
               onStop={() => { if (state.streaming) void window.api.stopReply(state.streaming.requestId) }} />
           </>

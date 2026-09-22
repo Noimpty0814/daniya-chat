@@ -113,6 +113,19 @@ describe('registerIpc 接线冒烟', () => {
     ].sort())
   })
 
+  it('file:register/file:pick 载荷带 conversationId：无 id/未知会话拒绝，已登记会话放行', async () => {
+    const p = path.join(dir, 'a.txt')
+    fs.writeFileSync(p, 'x')
+    expect(await invoke('file:register', { conversationId: 'nope', paths: [p] }))
+      .toMatchObject({ ok: false, error: '会话不存在' })
+    expect(await invoke('file:register', { paths: [p] }))
+      .toMatchObject({ ok: false, error: '会话不存在' })
+    expect(await invoke('file:pick', {})).toMatchObject({ files: [], error: '会话不存在' })
+    const meta = await invoke<{ id: string }>('chat:createConversation')
+    expect(await invoke('file:register', { conversationId: meta.id, paths: [p] }))
+      .toMatchObject({ ok: true, files: [{ name: 'a.txt', path: p }] })
+  })
+
   it('发消息 → delta/emotion/done：EMO 标记剥离、情绪事件先行、pet 联动', async () => {
     setApiKey(settingsFile, 'sk-test')
     const meta = await invoke<{ id: string }>('chat:createConversation')
