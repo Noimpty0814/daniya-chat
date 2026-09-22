@@ -120,10 +120,45 @@ function stampOf(dir: string): string | null {
 }
 
 /**
+ * 链接农场里必须真实 copyFile 的文件（materialize-hardlink spec 决策 2）：
+ * - `.stamp`：版本戳是"本次物化对应模板版本"的副本语义，不该与模板共享 inode；
+ * - `cordis.yml`：运行时必写点（boot 每次截断重写，first-boot-copy 报告 §2-W1），
+ *   硬链接会让写穿到只读模板的共享 inode。
+ * 按 basename 判定：误伤同名文件只是多拷一份，语义安全。
+ */
+const REAL_COPY_NAMES = new Set(['.stamp', 'cordis.yml'])
+
+/**
+ * 硬链接农场填充 staging（first-boot-copy 方案 C）：逐目录 mkdir、逐文件 link——
+ * 26.5k 文件的物化从 ~25s 整树拷贝降到 ~3.5s，边际磁盘 ~13MB（报告 §3-M2）。
+ * 假设：模板内无符号链接（prepare-harness.mjs V-7 断言包内为零）；若未来出现，
+ * link 其路径即共享 inode（按文件处理），语义届时另议。
+ * 全程 fs.promises（B-8）；任一 link 失败由调用方整树回退，本函数不兜底。
+ */
+async function fillStagingByLinks(srcDir: string, dstDir: string): Promise<void> {
+  await fs.promises.mkdir(dstDir, { recursive: true })
+  const entries = await fs.promises.readdir(srcDir, { withFileTypes: true })
+  await Promise.all(entries.map(async (e) => {
+    const src = path.join(srcDir, e.name)
+    const dst = path.join(dstDir, e.name)
+    if (e.isDirectory()) {
+      await fillStagingByLinks(src, dst)
+    } else if (REAL_COPY_NAMES.has(e.name)) {
+      await fs.promises.copyFile(src, dst)
+    } else {
+      await fs.promises.link(src, dst)
+    }
+  }))
+}
+
+/**
  * pack 首 run 物化：resources 的 harness/ → 可写目标目录（launch.mjs 相对自身解析 profile）。
  * 复用判定：launch.mjs 存在 且（模板无 .stamp → 旧行为直接复用；有 .stamp → 戳一致才复用）。
  * 戳不一致（升级覆盖安装）时整树重拷——先落 .tmp-<pid> 再换名，半途崩溃不留半成品目标；
  * 入口无条件清扫遗留的 `<target>.tmp-*` staging（上次被杀进程的残骸）。
+ * staging 填充优先硬链接农场（fillStagingByLinks）；任一 link 失败（EXDEV 跨卷 /
+ * EPERM / EACCES / EMLINK 超上限）放弃整棵 staging 用 fs.promises.cp 重填——
+ * 整树回退，绝不产出链接/拷贝混合树。
  * 全程 fs.promises：GB 级拷贝走线程池，主线程不得被同步 cpSync 冻结（B-8）。
  */
 export async function ensureHarnessMaterialized(
@@ -154,7 +189,13 @@ export async function ensureHarnessMaterialized(
   onMaterialize?.(true)
   try {
     await fs.promises.rm(staging, { recursive: true, force: true })
-    await fs.promises.cp(templateDir, staging, { recursive: true })
+    try {
+      await fillStagingByLinks(templateDir, staging)
+    } catch {
+      // 链接农场失败 → 弃掉半棵 staging 退回整树拷贝，行为与旧路径完全一致（spec 决策 3）
+      await fs.promises.rm(staging, { recursive: true, force: true })
+      await fs.promises.cp(templateDir, staging, { recursive: true })
+    }
     await fs.promises.rm(targetDir, { recursive: true, force: true })
     await fs.promises.rename(staging, targetDir)
   } finally {
