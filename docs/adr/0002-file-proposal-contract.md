@@ -17,3 +17,7 @@
 - v1 只支持整文件替换；片段级 patch 协议是已知延期项。
 
 契约原文在 `packages/daniya-bridge/src/contracts.ts`（FILE_CONTRACT，每轮由 `persona.ts` 随人设段注入）。
+
+## 补记（2026-09-22，file-proposal-service 票，PR #9）
+
+规则 1"本轮对话中用户附带的文件"裁决为**按会话作用域**：附件授权存于 `FileProposalService` 的 `Map<conversationId, Set<path>>`，同会话跨轮持续有效、跨会话拒绝、删除会话即回收。工作目录内成员资格是独立的恒通路径，不受会话作用域影响。早期实现曾用进程级永不清空的集合——与该承诺不符，已修。
