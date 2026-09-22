@@ -147,6 +147,29 @@ describe('线格式请求/响应', () => {
     expect((prompted.error as { message: string }).message).toContain('unknown session')
   })
 
+  it('契约外字段的请求帧仍被运行时防御拒绝（类型不替代校验）', async () => {
+    const h = wireHarness()
+    await call(h, 1, 'initialize', { workdir: WORKDIR, model: 'm' })
+    // sessionId 非 string：协议类型契约之外的载荷由 handler 的 typeof 防御兜住
+    const badHistory = await call(h, 2, 'session.history', { sessionId: 42 })
+    expect((badHistory.error as { message: string }).message).toContain('sessionId')
+    // prompt 的 text 非 string 同样被拒（先于 unknown session 检查抛出 TypeError）
+    const badPrompt = await call(h, 3, 'prompt', { sessionId: 'x', text: 42 })
+    expect((badPrompt.error as { message: string }).message).toContain('text')
+  })
+
+  it('契约外字段的通知帧被静默丢弃，服务不受影响', async () => {
+    const h = wireHarness()
+    await call(h, 1, 'initialize', { workdir: WORKDIR, model: 'm' })
+    // 无 id 帧属通知：server 不订阅入向通知，传输层直接丢弃——这就是运行时防御面。
+    h.input.write(`${JSON.stringify({ jsonrpc: '2.0', method: 'bogus.notify', params: { n: 42 } })}\n`)
+    h.input.write(`${JSON.stringify({ jsonrpc: '2.0', method: 'error', params: { message: 42 } })}\n`)
+    await settle()
+    expect(h.frames).toEqual([])
+    // 畸形通知没有污染服务面：后续正常请求仍完整往返。
+    expect(await call(h, 2, 'session.list')).toEqual({ jsonrpc: '2.0', id: 2, result: [] })
+  })
+
   it('事件通知以一行一帧写到输出流', async () => {
     const h = wireHarness()
     await call(h, 1, 'initialize', { workdir: WORKDIR, model: 'm' })

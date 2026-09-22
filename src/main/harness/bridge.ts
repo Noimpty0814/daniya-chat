@@ -34,24 +34,12 @@ export class BridgeTransportError extends BridgeError {
   constructor(message = 'harness 连接中断') { super('BRIDGE_TRANSPORT', message) }
 }
 
-/** session.history 返回的投影消息（daniya-bridge history.ts 的线格式） */
-export interface BridgeMessage {
-  id?: string
-  /** 'tool' 为工具结果消息（含 tool-result 块），用户可见历史应过滤 */
-  role: 'user' | 'assistant' | 'tool'
-  content: string
-  images?: { id?: string; dataUrl?: string; mediaType?: string; name?: string }[]
-  /** dsh 只存名称与字节数，原路径不可还原 */
-  files?: { name: string; bytes?: number }[]
-  /** assistant 消息携带 tool-call 块；tool 消息回填 tool-result 块（含 ok） */
-  toolCalls?: { callId: string; name: string; ok?: boolean }[]
-  model?: string
-  createdAt?: number
-}
-
-export interface SessionSummary { sessionId: string; title?: string; updatedAt?: number }
-
 export const DEFAULT_REQUEST_TIMEOUT_MS = 30_000
+
+/** 单次请求选项（目前仅超时）；`Bridge.request` 与 `DaniyaBridge` 门面共用。 */
+export interface RequestOptions {
+  timeoutMs?: number
+}
 
 interface Pending {
   method: string
@@ -85,7 +73,7 @@ export class Bridge {
   }
 
   /** 发送 JSON-RPC 请求；超时/协议错/传输死时以对应类型化错误 reject。 */
-  request<T = unknown>(method: string, params?: Json, opts?: { timeoutMs?: number }): Promise<T> {
+  request<T = unknown>(method: string, params?: Json, opts?: RequestOptions): Promise<T> {
     if (this.dead) return Promise.reject(this.dead)
     const id = this.nextId++
     const frame = JSON.stringify(params === undefined

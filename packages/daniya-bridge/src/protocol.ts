@@ -1,22 +1,30 @@
 /**
- * 协议层 —— spec §5.2 的按行 JSON-RPC 2.0 线格式契约。
+ * 协议层 —— spec §5.2 的按行 JSON-RPC 2.0 线格式契约（唯一类型真相源）。
  *
  * 传输本体复用 `@deepseek-ai/dsh-sdk-protocol` 的 `JsonRpcLineTransport`
  * （同一套按行分帧语义：非法行忽略、`-32601`/`-32603`、stdout 只写协议帧、
  * 入向通知无处理器则丢弃）。本文件固定 daniya 侧的 9 个请求方法与 6 种
- * 通知的参数/结果类型，供 server 实现与测试共同引用。
+ * 通知的参数/结果类型：server 分派表与 main 侧 `DaniyaBridge` 门面都由它
+ * 在编译期约束，任一侧改字段名即编译错而非运行时漂移。
+ *
+ * 零导入铁律：本文件被根项目 tsconfig.node.json 直接 include 做 typecheck
+ * （composite 的文件清单要求，缺了报 TS6307）；任何 import 都会把被引文件
+ * 一并拖进根项目清单造成连锁报错。因此本文件只允许类型声明——禁止 import，
+ * 也不得有运行时语句（零体积、零依赖的纯契约面）。
  *
  * stdin EOF 的退出语义不在传输层：插件层按 sdk 参照接线（见 index.ts）。
  *
  * @module daniya-bridge/protocol
  */
 
-import type { BridgeMessage } from './history.js'
-
-/** 桥接端暴露的通知/响应写面（server 只依赖这一侧，便于测试替换）。 */
+/**
+ * 桥接端暴露的通知/响应写面（server 只依赖这一侧，便于测试替换）。
+ * `notify` 受 `BridgeNotificationMap` 约束：写错方法名或字段是编译错。
+ * `JsonRpcLineTransport` 的 `(method: string, params?: object)` 签名逆变兼容。
+ */
 export interface BridgeTransportPeer {
-  /** 发送一条通知；省略 `params` 时不写 `params` 字段。 */
-  notify(method: string, params?: object): void
+  /** 发送一条通知；`params` 形状由 `method` 在 `BridgeNotificationMap` 中钉死。 */
+  notify<M extends BridgeNotificationMethod>(method: M, params: BridgeNotificationMap[M]): void
   /** 等待此前所有帧的写回调；空屏障，不写任何字节。 */
   flush(): Promise<void>
 }
@@ -60,11 +68,69 @@ export interface PromptParams extends SessionIdParams {
   images?: WireImage[]
 }
 
+/**
+ * 各请求方法的 params 类型索引；无参方法记 `undefined`。
+ * server 分派表键集与 main 侧 `request<M>` 重载共用此表——漏一个方法是编译错。
+ * 注意：这是"声明形状"，wire 对端送来的仍是裸数据，server handler 的
+ * `typeof` 运行时防御不因此省略。
+ */
+export interface BridgeParamsMap {
+  'initialize': InitializeParams
+  'session.create': undefined
+  'session.resume': SessionIdParams
+  'session.list': undefined
+  'session.history': SessionIdParams
+  'session.delete': SessionIdParams
+  'prompt': PromptParams
+  'cancel': SessionIdParams
+  'shutdown': undefined
+}
+
 /** `session.list` 行：title 恒空串（显示名由主进程登记簿自持）。 */
 export interface SessionSummary {
   sessionId: string
   title: string
   updatedAt: number
+}
+
+// ---- 历史线格式（`session.history` 的 `BridgeMessage` 投影面） ----
+
+/** 历史消息中的图像引用；`dataUrl` 在能读出附件字节时填充（还原 `ImagePart`）。 */
+export interface BridgeImage {
+  id: string
+  dataUrl?: string
+  mediaType: string
+  width: number
+  height: number
+  name?: string
+}
+
+/** 历史消息中的文件引用（dsh 不存原路径，只有名称与字节数）。 */
+export interface BridgeFile {
+  name: string
+  bytes: number
+}
+
+/** 消息携带的工具调用信息：assistant 消息列出发起的调用，tool 消息回填结果。 */
+export interface BridgeToolCall {
+  callId: string
+  name: string
+  ok?: boolean
+}
+
+/**
+ * spec §5.2 `BridgeMessage`：字段按 `{id, role, content, images?, toolCalls?, createdAt}`
+ * 对齐，`files?`/`model?` 为还原 `ChatMessage` 所需的超集字段。
+ */
+export interface BridgeMessage {
+  id: string
+  role: 'user' | 'assistant' | 'tool'
+  content: string
+  images?: BridgeImage[]
+  files?: BridgeFile[]
+  toolCalls?: BridgeToolCall[]
+  model?: string
+  createdAt: number
 }
 
 // ---- 通知（6 种） ----
@@ -119,6 +185,21 @@ export interface ErrorNotification {
   sessionId?: string
   message: string
 }
+
+/** 各通知方法的 params 类型索引；`safeNotify`/`on<M>` 按它收窄。 */
+export interface BridgeNotificationMap {
+  'stream.chunk': StreamChunkNotification
+  'stream.end': StreamEndNotification
+  'tool.call': ToolCallNotification
+  'tool.result': ToolResultNotification
+  'agent.status': AgentStatusNotification
+  'error': ErrorNotification
+}
+
+/** 出向通知帧的判别联合：`method` 收窄 `params`（main 侧 switch 按此分流）。 */
+export type BridgeNotification = {
+  [M in BridgeNotificationMethod]: { method: M; params: BridgeNotificationMap[M] }
+}[BridgeNotificationMethod]
 
 // ---- 结果类型 ----
 

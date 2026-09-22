@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { HarnessRuntime, HarnessUnavailableError, ensureHarnessMaterialized, defaultHarnessSpec } from './process'
-import type { Json } from './bridge'
+import type { BridgeNotification } from './client'
 
 const FIXTURE = fileURLToPath(new URL('./fixtures/fake-bridge.mjs', import.meta.url))
 
@@ -75,15 +75,15 @@ describe('HarnessRuntime 生命周期', () => {
 
   it('通知经 setNotificationHandler 分发（prompt → stream.chunk/end）', async () => {
     const rt = makeRuntime()
-    const events: [string, Json][] = []
-    rt.setNotificationHandler((m, p) => events.push([m, p]))
+    const events: BridgeNotification[] = []
+    rt.setNotificationHandler(n => events.push(n))
     const bridge = await rt.ensure()
-    const { sessionId } = await bridge.request<{ sessionId: string }>('session.create', {})
-    await bridge.request('prompt', { sessionId, text: 'hi' })
+    const { sessionId } = await bridge.sessions.create()
+    await bridge.prompt(sessionId, 'hi')
     await vi.waitFor(() => {
-      expect(events.some(([m]) => m === 'stream.end')).toBe(true)
+      expect(events.some(n => n.method === 'stream.end')).toBe(true)
     }, { timeout: 3000 })
-    expect(events.some(([m]) => m === 'stream.chunk')).toBe(true)
+    expect(events.some(n => n.method === 'stream.chunk')).toBe(true)
     await rt.shutdown()
   })
 
