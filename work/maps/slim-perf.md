@@ -21,14 +21,15 @@
 - 首启物化拷贝判定（PR #4）：唯一硬写点=boot 重写 `cordis.yml`（223B），其余数据面全落 DSH_HOME；拷贝非唯一解——推荐 **C 硬链接农场**（首启 IO 25s→3.5s、双倍磁盘 643MB→~13MB，保 .stamp/.tmp/B-7 全部保证，EXDEV 回退拷贝）+ **E 上游条件写**终态；D junction 壳备选（Linux 已实证）；B 随裁剪缩水正交但文件数 bound 收益有限 → `work/maps/slim-perf/first-boot-copy.md`；Windows 复核项 WR-1~6
 - 验证脚本缺口：`verify-profile.mjs` 断言 Windows 写死（persistent-pwsh 须 ACTIVE、bash 须不 ACTIVE、工具集含 pwsh）→ Linux 上正确行为被判失败，需平台化断言后才可作裁剪兜底
 - 死依赖判定已交付（feat/dead-deps-scan，`work/maps/slim-perf/dead-deps.md`）：linux 树 475 包实测 **351 dead / 121 alive / 3 unknown**，7 组累积删后 verify 恰 4 平台失败 + smoke 11 PASS；blocklist 353 项（win32 可裁 ~548MB/643MB）；unknown = sharp-wasm32/emnapi/node-addon-api；win32 boot 复核为 follow-up。另实测 ACTIVE 条目为 **36**（非 35，`include` 行计入口径差异）
+- 实现面全部落地（session devin-local）：verify-linux（PR #10）→ materialize-hardlink（PR #11）→ slim-installer（PR #12）。linux 侧机械验收达成：裁剪后暂存树 76.7MiB 上 verify-profile exit 0。**剩余均为 Windows 侧**：基线三段测量 + WR 复核，全部收编在 `windows-checklist.md`
 
 ## Frontier
 - [x] spawn spec `verify-linux` — 已落地（PR #10）：verify-profile.mjs 断言平台化（win32→pwsh 集 / 非 win32→bash 集对称断言），verify/smoke 均支持可选 harness-root 参数（可对 `build/harness-bundle` 跑同一门禁）；Linux 实测 exit 0。win32 腿复跑在 windows-checklist.md §E
 - [x] 死依赖清单与可删性验证 — research 已验收合并（PR #5）→ `work/maps/slim-perf/dead-deps.md`：351 dead / 121 alive / 3 unknown，blocklist 353 项可直接贴入 prepare-harness.mjs；**裁剪名单须保住 Linux boot 面**已落实（node-pty/koffi/node-addon-system-linux 等全部判 alive 不入列）
 - [x] 首启物化拷贝是否可省 — research 已验收合并（PR #4）：拷贝可省/可缩水，推荐硬链接农场 → `work/maps/slim-perf/first-boot-copy.md`
 - [x] spawn spec `materialize-hardlink` — 已落地（PR #11）：`fillStagingByLinks` 链接农场（mkdir+link、.stamp/cordis.yml 真实拷贝、任一 link 失败整树回退 cp），process.test.ts 21/21 含 inode 共享/写穿/EXDEV 回退用例；win32 NTFS 语义复核在 windows-checklist.md §G
-- [~] Windows 基线 checklist — task（claimed: devin-local）：给用户一份 pack 体积 + 冷启动 + 常驻内存测量步骤
-- [~] spawn spec slim-installer（claimed: devin-local）：死依赖裁剪落地——前置已齐（清单+blocklist 在 `work/maps/slim-perf/dead-deps.md`），spec 需含 win32 boot 复核步骤；验收门禁依赖 verify-linux 先落地
+- [x] Windows 基线 checklist — 已交付 `work/maps/slim-perf/windows-checklist.md`（A 体积 / B 首启物化 / C 冷启动分解 / D 常驻 / E verify win32 腿 / F slim win32 复核 / G 硬链接复核，含回填格式）；执行属用户 Windows 侧
+- [x] spawn spec slim-installer — 已落地（PR #12）：`scripts/dead-deps.mjs` 353 项名单 + prepare-harness 顶层包过滤 + 漏剪断言 + `verify:bundle` 门禁；linux 暂存树 491MB→**76.7MiB / 4047 文件**，bundle 上 verify exit 0；win32 boot 复核在 checklist §F
 
 ## Fog
 - 常驻内存/CPU 的可疑来源（harness 常驻进程、pet-helper 轮询、渲染层）——等基线
