@@ -13,7 +13,7 @@
  *       package.json        profile 清单（dsh.profile.bundles + pinned deps）
  *       package-lock.json   锁文件（溯源用）
  *       cordis.patch.yml    spec §4 patch 层（运行时 loader 必读）
- *       node_modules/       全量依赖树（487+ 包，含 .bin shims）
+ *       node_modules/       依赖树（dead-deps blocklist 裁剪后，含 .bin shims）
  *         daniya-bridge/    file: junction 已解引用为真实目录（lib/ + package.json；
  *                         src/tests/node_modules 等 dev 产物不进包）
  *
@@ -28,6 +28,7 @@ import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { DEAD_DEPS } from './dead-deps.mjs'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const harnessDir = path.join(repoRoot, 'harness')
@@ -69,17 +70,33 @@ for (const name of ['package.json', 'package-lock.json', 'cordis.patch.yml']) {
   fs.copyFileSync(src, path.join(stagingProfile, name))
 }
 
-// ── 4. node_modules 全量（junction 解引用），daniya-bridge 单独按白名单复制 ────
-const bridgeLink = path.join(profileDir, 'node_modules', 'daniya-bridge')
+// ── 4. node_modules（junction 解引用 + 死依赖裁剪），daniya-bridge 单独按白名单复制 ──
+const nodeModulesRoot = path.join(profileDir, 'node_modules')
+const bridgeLink = path.join(nodeModulesRoot, 'daniya-bridge')
 const skipEverywhere = new Set(['.dev-dsh-home', 'cordis.yml'])
-log('copying profile/node_modules (dereferencing links) ...')
-fs.cpSync(path.join(profileDir, 'node_modules'), path.join(stagingProfile, 'node_modules'), {
+// 死依赖裁剪（slim-installer）：名单见 scripts/dead-deps.mjs（三重证据判定）。
+// 包键 = path.relative(nodeModulesRoot, src) 首段；首段为 @scope 时取前两段。
+// 只判顶层包目录——嵌套路径的首段仍属宿主包，嵌套 node_modules 不被误裁。
+const pkgKeyOf = (rel) => {
+  const segs = rel.split(path.sep)
+  return segs[0].startsWith('@') ? segs.slice(0, 2).join(path.sep) : segs[0]
+}
+const prunedKeys = new Set()
+// 名单漂移容忍：blocklist 项在源树缺席只 warn 不 fail（lockfile 传递漂移正常）。
+const absentKeys = [...DEAD_DEPS].filter((key) => !fs.existsSync(path.join(nodeModulesRoot, key)))
+log('copying profile/node_modules (dereferencing links, pruning dead deps) ...')
+fs.cpSync(nodeModulesRoot, path.join(stagingProfile, 'node_modules'), {
   recursive: true,
   dereference: true,
   filter: (src) => {
     if (path.resolve(src) === bridgeLink) return false // junction 单独处理
     const base = path.basename(src)
     if (skipEverywhere.has(base) || base.endsWith('.log')) return false
+    const rel = path.relative(nodeModulesRoot, src)
+    if (rel !== '' && DEAD_DEPS.has(pkgKeyOf(rel))) {
+      prunedKeys.add(pkgKeyOf(rel))
+      return false
+    }
     return true
   },
 })
@@ -135,6 +152,26 @@ if (fs.lstatSync(path.join(stagingProfile, 'node_modules', 'daniya-bridge')).isS
   fail('daniya-bridge 仍是符号链接（junction 未解引用）')
 }
 
+// 裁剪断言（slim-installer）：暂存 node_modules 顶层包目录任一命中 DEAD_DEPS 即 fail——
+// 防 filter 逻辑漏剪。包键口径与裁剪端一致（@scope 取两段）。
+const stagedNm = path.join(stagingProfile, 'node_modules')
+const stagedOffenders = []
+for (const entry of fs.readdirSync(stagedNm, { withFileTypes: true })) {
+  if (!entry.isDirectory()) continue
+  if (entry.name.startsWith('@')) {
+    for (const sub of fs.readdirSync(path.join(stagedNm, entry.name), { withFileTypes: true })) {
+      if (sub.isDirectory() && DEAD_DEPS.has(`${entry.name}/${sub.name}`)) {
+        stagedOffenders.push(`${entry.name}/${sub.name}`)
+      }
+    }
+  } else if (DEAD_DEPS.has(entry.name)) {
+    stagedOffenders.push(entry.name)
+  }
+}
+if (stagedOffenders.length) {
+  fail(`暂存 node_modules 残留 blocklist 包（filter 漏剪）：\n  ${stagedOffenders.join('\n  ')}`)
+}
+
 let files = 0
 let bytes = 0
 let links = 0
@@ -165,3 +202,7 @@ if (strays.length) fail(`暂存产物混入排除项：\n  ${strays.join('\n  ')
 
 log(`OK -> ${path.relative(repoRoot, stagingDir)}`)
 log(`files=${files} size=${(bytes / 1024 / 1024).toFixed(1)} MiB`)
+log(`pruned ${prunedKeys.size}/${DEAD_DEPS.size} dirs`)
+if (absentKeys.length) {
+  log(`WARN ${absentKeys.length} blocklist 项源树缺席（名单漂移，未裁到）：${absentKeys.join(', ')}`)
+}
