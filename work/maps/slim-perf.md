@@ -4,7 +4,7 @@
 一份 spec 集，落地后：物化树/安装包内不存在不服务当前产品面的冗余依赖（可机械验收：删掉后 profile boot 冒烟照过），且首启物化拷贝、冷启动、常驻占用三段性能建立基线并达到约定阈值（阈值随基线产出回填，不预先拍数）。
 
 ## Notes
-- 产品 Windows-only（AGENTS.md）；开发横跨 WSL + Ubuntu 服务器 + fairybox——测量与验证手段必须能在 Linux 侧跑通
+- 产品使用仅 Windows（AGENTS.md），但**除视觉效果外的一切验证必须能在 Linux 跑通**——fairybox 即用户的 Ubuntu 远端服务器；含 harness boot、裁剪验证、基线测量
 - 必读：docs/adr/0001（dsh 运行时、B-7 node.exe/B-8 .stamp 物化坑）、docs/adr/0002、 harness/README.md、scripts/prepare-harness.mjs
 - 验证分工：Linux 侧（本地/fairybox）跑 typecheck+test+profile boot 冒烟；Windows 真机跑 pack/安装包/冷启动/pwsh/桌宠
 - stdout 只许协议帧；harness 宿主必须是真 Node（非 electron-as-node）
@@ -16,12 +16,12 @@
 - 裁剪手段：post-install 按名单删目录 + boot 冒烟兜底（不动 lockfile/上游）；可顺手向 dsh 上游提拆包需求
 - 测量策略：物化树体积 Linux 可代理测量（`npm install --os=win32 --cpu=x64` scratch 复现已验证可行）；Windows 安装包/冷启动走用户 checklist
 - 基线事实（scratch 实测）：win32-x64 物化树 **621MB / 26,482 文件**；`libreoffice-kit-win32-x64` 独占 **330MB(53%)**，来自从不激活的 `dsh`→`dsh-web-app`→`dsh-office-to-pdf` 链；`@opentelemetry` 35MB（遥测已禁）、`openai` 17MB、`@google/genai` 14MB、`@anthropic-ai` 13MB（pi-ai 多供应商链，产品只用 DeepSeek）、`@octokit`/`@smithy`/`@aws-sdk` ~25MB
+- 兼容性口径：开发/验证面兼容 Linux（非视觉验证全部可跑），产品保持 Windows-only；fairybox 即用户的 Ubuntu 远端服务器
 
 ## Frontier
-- [ ] 系统兼容性口径 — grill（开发面兼容 / 产品跨平台 / Windows 版本覆盖——影响 destination 边界与 frontier 形状）
-- [ ] 死依赖清单与可删性验证 — research：逐包判定是否在 cordis 激活面/被 require 链触达（libreoffice-kit、dsh-web-app、otel、pi-ai、openai、anthropic、genai、octokit、aws-sdk、mcp、acp、session-query-sqlite、tool-fs-search/ripgrep…）；候选删法 = prepare-harness.mjs 加 blocklist + verify-profile.mjs 兜底
+- [~] harness profile Linux boot 验证 + boot 耗时基线 — prototype `wsl-local-0922`：装 linux 依赖跑 verify-profile.mjs/launch.mjs，记录 cordis jsExpr 平台分支实际行为（pwsh↔bash、sandbox 策略）；是裁剪验证与冷启动基线的公共前置，也是"非视觉验证 Linux 可跑"的硬验收
+- [ ] 死依赖清单与可删性验证 — research：逐包判定是否在 cordis 激活面/被 require 链触达（libreoffice-kit、dsh-web-app、otel、pi-ai、openai、anthropic、genai、octokit、aws-sdk、mcp、acp、session-query-sqlite、tool-fs-search/ripgrep…）；候选删法 = prepare-harness.mjs 加 blocklist + verify-profile.mjs 兜底；**裁剪名单须保住 Linux boot 面**
 - [ ] 首启物化拷贝是否可省 — research：读 process.ts 物化逻辑，回答 B-8 为何拷到 %APPDATA% 而非就地运行；若可省则同时消掉 A 段性能和双倍磁盘占用
-- [ ] harness boot 耗时基线 — prototype：Linux 装依赖对 launch.mjs/verify-profile.mjs 计时（keyless 可跑）
 - [ ] Windows 基线 checklist — task：给用户一份 pack 体积 + 冷启动 + 常驻内存测量步骤
 - [ ] spawn spec slim-installer：死依赖裁剪落地（依赖"死依赖清单"结论）
 
