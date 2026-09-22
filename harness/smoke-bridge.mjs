@@ -1,11 +1,14 @@
 // 协议冒烟：真实 launch.mjs + daniya-bridge lib，无 LLM key 下验证协议面。
-// 用法: node harness/smoke-bridge.mjs   （需要 DSH_HOME 可写；默认 .dev-dsh-home）
+// 用法: node harness/smoke-bridge.mjs [harness-root]   （需要 DSH_HOME 可写；默认 .dev-dsh-home）
+//   harness-root 默认 <repo>/harness；启动 <harness-root>/launch.mjs，
+//   即 boot <harness-root>/profile 树（launch.mjs 的 profile 相对自身目录解析）。
 import { spawn } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const child = spawn(process.execPath, [path.join(root, 'harness', 'launch.mjs')], {
+const harnessRoot = process.argv[2] ? path.resolve(process.argv[2]) : path.join(root, 'harness')
+const child = spawn(process.execPath, [path.join(harnessRoot, 'launch.mjs')], {
   env: {
     ...process.env,
     DSH_HOME: process.env.DSH_HOME ?? path.join(root, '.dev-dsh-home'),

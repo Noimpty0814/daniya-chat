@@ -9,13 +9,19 @@
  *   - active:    daniya-bridge, attachment-local, web, web-search-deepseek,
  *                web-fetch-http, tool-web, compaction-basic,
  *                tool-result-pruner, token-meter
+ *   - platform pair, keyed on the same `process.platform === 'win32'` as
+ *     cordis.patch.yml's `!!js` lines: win32 → terminal-pwsh + persistent-pwsh
+ *     ACTIVE, bash pair not ACTIVE; non-win32 → bash pair ACTIVE, pwsh pair not
  *   - sandbox-policy config is workspace-write rooted at $DANIYA_WORKDIR
- *   - model-visible tools are exactly pwsh / web_search / web_fetch
+ *   - model-visible tools are exactly pwsh / web_search / web_fetch (win32)
+ *     or bash / web_search / web_fetch (non-win32)
  *
  * All diagnostics go to stderr; stdout stays reserved for the bridge
  * protocol, so this script is also a stdout-cleanliness probe.
  *
- * Usage: node harness/verify-profile.mjs
+ * Usage: node harness/verify-profile.mjs [harness-root]
+ *   harness-root defaults to <repo>/harness; the profile under test is
+ *   <harness-root>/profile, so the same gate can run on a staged bundle.
  * Exits 0 when every assertion holds, 1 otherwise.
  */
 
@@ -23,9 +29,11 @@ import { createRequire } from 'node:module'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
-const harnessDir = dirname(fileURLToPath(import.meta.url))
-const repoRoot = resolve(harnessDir, '..')
-const profileDir = resolve(harnessDir, 'profile')
+const scriptDir = dirname(fileURLToPath(import.meta.url))
+const repoRoot = resolve(scriptDir, '..')
+// Optional positional arg: harness root dir (default <repo>/harness).
+const harnessRoot = process.argv[2] ? resolve(process.argv[2]) : resolve(repoRoot, 'harness')
+const profileDir = resolve(harnessRoot, 'profile')
 
 if (process.env.DSH_HOME === undefined || process.env.DSH_HOME.trim() === '') {
   process.env.DSH_HOME = resolve(repoRoot, '.dev-dsh-home')
@@ -89,6 +97,16 @@ const mustBeDisabled = [
   'session-log-deepseek',
   'plugin-package-inventory-deepseek',
 ]
+// Platform pair uses the same key as cordis.patch.yml's `!!js` lines:
+// win32 → pwsh set lives; non-win32 → bash set lives.
+const isWin = process.platform === 'win32'
+const platformActive = isWin
+  ? ['terminal-pwsh', 'persistent-pwsh']
+  : ['terminal-bash', 'persistent-bash']
+const platformInactive = isWin
+  ? ['terminal-bash', 'persistent-bash']
+  : ['terminal-pwsh', 'persistent-pwsh']
+
 const mustBeActive = [
   'daniya-bridge',
   'attachment-local',
@@ -100,7 +118,7 @@ const mustBeActive = [
   'tool-result-pruner',
   'token-meter',
   'sandbox-policy',
-  'persistent-pwsh',
+  ...platformActive,
 ]
 
 // The four removals are literal `disabled: true` — no fiber should exist.
@@ -117,8 +135,9 @@ for (const id of mustBeActive) {
   else if (entry.fiber?.state !== 2)
     fail(`entry '${id}' should be ACTIVE, fiber=${fiberState(entry)}`)
 }
-// Platform-deactivated rows must NOT have an ACTIVE fiber (win32 → bash off).
-for (const id of ['terminal-bash', 'persistent-bash']) {
+// Platform-deactivated rows must NOT have an ACTIVE fiber
+// (win32 → bash off; non-win32 → pwsh off).
+for (const id of platformInactive) {
   const entry = entries.get(id)
   if (entry && entry.fiber?.state === 2)
     fail(`entry '${id}' should not be ACTIVE on ${process.platform}`)
@@ -135,12 +154,15 @@ try {
   fail(`ctx.sandboxPolicy threw: ${(error && error.message) || error}`)
 }
 
-// Model-visible tools: exactly pwsh / web_search / web_fetch.
+// Model-visible tools: win32 → pwsh / web_fetch / web_search;
+// non-win32 → bash / web_fetch / web_search.
 try {
   const schemas = ctx.tools?.schemas?.() ?? []
   const toolNames = schemas.map((s) => s.name).sort()
   report.tools = toolNames
-  const expected = ['pwsh', 'web_fetch', 'web_search']
+  const expected = isWin
+    ? ['pwsh', 'web_fetch', 'web_search']
+    : ['bash', 'web_fetch', 'web_search']
   if (JSON.stringify(toolNames) !== JSON.stringify(expected))
     fail(`tool set mismatch: got [${toolNames.join(', ')}], expected [${expected.join(', ')}]`)
 } catch (error) {
