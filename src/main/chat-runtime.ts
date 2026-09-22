@@ -11,17 +11,17 @@
  *   projectMessage 历史投影 / 错误→中文映射，原样迁入。
  *
  * 不 import electron：出站唯一通道是 ReplySender（WebContents 结构满足，
- * handler 里 e.sender 直接传入），settings/提案/附件继续模块级 import
- * （端口抽象留给后续 FileProposalService 定形）。
+ * handler 里 e.sender 直接传入）；settings 继续模块级 import，附件授权与
+ * 提案生命周期经 deps.files（FileProposalService）注入。
  */
 import { randomUUID } from 'node:crypto'
 import type {
-  ChatMessage, ConversationMeta, FileProposalEvent, SearchHit,
+  ChatMessage, ConversationMeta, FileAttachment, FileProposalEvent, SearchHit,
   StartReplyPayload, StartReplyResult, StreamEventMsg, ToolBadge,
 } from '../shared/types'
 import { loadSettings, getApiKey } from './settings'
-import { injectFilesIntoLastTurn, stripFileContext } from './files/attach'
-import { createProposal, applyProposal } from './files/apply'
+import { stripFileContext } from './files/service'
+import type { FileProposalService } from './files/service'
 import { FileProposalParser, type ProposalResult } from './files/proposal'
 import { EmotionParser, type Emotion } from './harness/emotion'
 import { ConversationRegistry, NEW_CONVERSATION_TITLE } from './harness/conversations'
@@ -49,6 +49,8 @@ export interface ChatRuntimeDeps {
   runtime: HarnessLike
   registry: ConversationRegistry
   settingsFile: string
+  /** 附件授权与提案生命周期（file-proposal-service 票，registerIpc 构造注入） */
+  files: FileProposalService
   /** 保持惰性 thunk：设置变更会重建 pet 实例 */
   pet: () => PetCoordinator
 }
@@ -98,6 +100,8 @@ interface TurnDeps {
   /** 惰性 thunk：设置变更会重建 pet 实例 */
   pet: () => PetCoordinator
   settingsFile: string
+  /** 提案授权/查表走服务（授权作用域 = 发起 turn 的会话） */
+  files: FileProposalService
   /** turn 关闭时回调宿主注销登记（先于此发终帧，保住"立刻再发"守卫） */
   onClosed: (t: ReplyTurn) => void
 }
@@ -186,14 +190,14 @@ class ReplyTurn {
       this.sendFile({ id: '', path: '', resolvedPath: '', diff: [], autoApplied: false, error: '达妮娅的修改提案格式无效，已忽略（可让她重试）' })
       return
     }
-    const res = createProposal(proposal.path, proposal.content, loadSettings(this.deps.settingsFile).file)
+    const res = this.deps.files.createProposal(this.conversationId, proposal.path, proposal.content, loadSettings(this.deps.settingsFile).file)
     if (!res.ok) {
       this.sendFile({ id: '', path: proposal.path, resolvedPath: '', diff: [], autoApplied: false, error: res.error })
       return
     }
     this.sendFile(res.event)
     if (res.event.autoApplied) {
-      const applied = applyProposal(res.event.id)
+      const applied = this.deps.files.applyProposal(res.event.id)
       if (!applied.ok) this.sendFile({ ...res.event, error: '自动应用失败：' + (applied.error ?? '未知错误') })
     }
   }
@@ -289,7 +293,7 @@ export class ChatRuntime {
 
   constructor(deps: ChatRuntimeDeps) {
     this.deps = deps
-    this.turnDeps = { pet: deps.pet, settingsFile: deps.settingsFile, onClosed: t => { this.unregister(t) } }
+    this.turnDeps = { pet: deps.pet, settingsFile: deps.settingsFile, files: deps.files, onClosed: t => { this.unregister(t) } }
     deps.runtime.setNotificationHandler(n => {
       try { this.dispatch(n) } catch (err) { console.warn('[chat-runtime] bridge 通知处理失败:', err) }
     })
@@ -326,9 +330,9 @@ export class ChatRuntime {
       return { ok: false, error: bridgeErrorText(err) }
     }
 
-    // 附件注入逻辑不变：仍把本轮附带文件内容拼进 prompt 文本（模型无需读附件路径）
+    // 附件注入逻辑不变：仍把本轮附带文件内容拼进 prompt 文本（只读本会话授权内的附件）
     const turn = { role: 'user', content: p.content }
-    injectFilesIntoLastTurn([turn], p.files ?? [])
+    this.deps.files.injectTurn(p.conversationId, turn, p.files ?? [])
     const images = (p.images ?? []).map(dataUrlToImage).filter((i): i is { data: string; mimeType: string } => i !== null)
 
     // 预登记请求位：stream.* 通知按 sessionId 路由，prompt 回执前后的帧都不丢
@@ -361,6 +365,18 @@ export class ChatRuntime {
     const t = this.activeByRequest.get(requestId)
     if (!t) return
     void this.deps.runtime.activeBridge?.cancel(t.sessionId).catch(() => {})
+  }
+
+  /** file:register：会话存在性校验（无 id/未知会话拒绝）后委托服务登记附件授权 */
+  registerFiles(conversationId: string, paths: string[]): { ok: boolean; files: FileAttachment[]; error?: string } {
+    if (!conversationId || !this.deps.registry.get(conversationId)) return { ok: false, files: [], error: '会话不存在' }
+    return this.deps.files.register(conversationId, paths)
+  }
+
+  /** file:pick：同 registerFiles 的会话校验，通过后由服务弹框+登记 */
+  async pickFiles(conversationId: string): Promise<{ files: FileAttachment[]; error?: string }> {
+    if (!conversationId || !this.deps.registry.get(conversationId)) return { files: [], error: '会话不存在' }
+    return this.deps.files.pick(conversationId)
   }
 
   async listConversations(): Promise<ConversationMeta[]> {
@@ -397,6 +413,8 @@ export class ChatRuntime {
       this.liveSessions.delete(entry.sessionId)
     }
     this.historyCache.delete(id)
+    // 会话生命周期即授权生命周期：回收该会话附件授权与未决提案（file-proposal-service 票）
+    this.deps.files.closeConversation(id)
     this.deps.registry.remove(id)
   }
 

@@ -2,8 +2,7 @@ import { ipcMain, BrowserWindow, shell, dialog, type IpcMainInvokeEvent } from '
 import type { AppSettingsView, StartReplyPayload } from '../shared/types'
 import { loadSettings, saveSettings, toView, setApiKey, getApiKey, applyView, type AppSettings } from './settings'
 import { capturePrimaryScreen } from './screenshot'
-import { registerFiles, pickFiles } from './files/attach'
-import { applyProposal, rejectProposal } from './files/apply'
+import { FileProposalService } from './files/service'
 import { ConversationRegistry } from './harness/conversations'
 import { ChatRuntime, type HarnessLike } from './chat-runtime'
 import type { PetCoordinator } from './pet/coordinator'
@@ -26,7 +25,8 @@ export interface RegisterIpcOpts {
 
 export function registerIpc(opts: RegisterIpcOpts): void {
   const { registry, runtime, settingsFile, pet } = opts
-  const chat = new ChatRuntime({ registry, runtime, settingsFile, pet })
+  const files = new FileProposalService()
+  const chat = new ChatRuntime({ registry, runtime, settingsFile, pet, files })
 
   ipcMain.handle('chat:listConversations', () => chat.listConversations())
   ipcMain.handle('chat:createConversation', () => chat.createConversation())
@@ -67,12 +67,14 @@ export function registerIpc(opts: RegisterIpcOpts): void {
   ipcMain.handle('window:hide', (e) => { BrowserWindow.fromWebContents(e.sender)?.hide() })
   ipcMain.handle('pet:status', () => pet().status())
 
-  ipcMain.handle('file:pick', () => pickFiles())
-  ipcMain.handle('file:register', (_e, p: { paths?: unknown[] }) => registerFiles((p.paths ?? []).filter((x): x is string => typeof x === 'string')))
+  // file:register/file:pick 载荷新增 conversationId（授权按会话作用域）；会话存在性校验在 ChatRuntime 内
+  ipcMain.handle('file:pick', (_e, p?: { conversationId?: string }) => chat.pickFiles(p?.conversationId ?? ''))
+  ipcMain.handle('file:register', (_e, p?: { conversationId?: string; paths?: unknown[] }) =>
+    chat.registerFiles(p?.conversationId ?? '', (p?.paths ?? []).filter((x): x is string => typeof x === 'string')))
   ipcMain.handle('file:pickDir', async () => {
     const r = await dialog.showOpenDialog({ properties: ['openDirectory'] })
     return r.canceled || !r.filePaths[0] ? '' : r.filePaths[0]
   })
-  ipcMain.handle('file:apply', (_e, p: { id: string }) => applyProposal(p.id))
-  ipcMain.handle('file:reject', (_e, p: { id: string }) => { rejectProposal(p.id) })
+  ipcMain.handle('file:apply', (_e, p: { id: string }) => files.applyProposal(p.id))
+  ipcMain.handle('file:reject', (_e, p: { id: string }) => { files.rejectProposal(p.id) })
 }

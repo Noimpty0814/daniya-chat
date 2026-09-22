@@ -16,8 +16,8 @@ export interface Api {
   setApiKey(key: string): Promise<void>
   testConnection(): Promise<{ ok: boolean; message: string }>
   captureScreen(): Promise<{ ok: boolean; dataUrl?: string; error?: string }>
-  pickFiles(): Promise<{ files: FileAttachment[]; error?: string }>
-  registerFiles(paths: string[]): Promise<{ ok: boolean; files: FileAttachment[]; error?: string }>
+  pickFiles(conversationId: string): Promise<{ files: FileAttachment[]; error?: string }>
+  registerFiles(conversationId: string, paths: string[]): Promise<{ ok: boolean; files: FileAttachment[]; error?: string }>
   pickWorkDir(): Promise<string>
   applyProposal(id: string): Promise<{ ok: boolean; error?: string }>
   rejectProposal(id: string): Promise<void>

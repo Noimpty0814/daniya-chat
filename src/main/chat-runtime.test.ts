@@ -4,13 +4,14 @@
  * HarnessLike 桩 + scripted DaniyaBridge + 记录型 ReplySender：
  * 通知经 FakeRuntime.emit 同步派发，无子进程、无 waitEvent 轮询——
  * turn 语义（B-6 终态、预登记、stray 兜底、transportDown 清扫）在这里钉死。
- * files/apply 传递依赖 electron（dialog/safeStorage），故仍需 electron mock。
+ * files/service 传递依赖 electron（dialog/safeStorage），故仍需 electron mock。
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { ChatRuntime, type HarnessLike, type ReplySender } from './chat-runtime'
+import { FileProposalService } from './files/service'
 import { ConversationRegistry } from './harness/conversations'
 import { HarnessUnavailableError } from './harness/process'
 import { BridgeProtocolError } from './harness/bridge'
@@ -88,6 +89,7 @@ let registry: ConversationRegistry
 let pet: ReturnType<typeof makePet>
 let runtime: FakeRuntime
 let bridge: ScriptedBridge
+let files: FileProposalService
 let chat: ChatRuntime
 
 beforeEach(() => {
@@ -99,7 +101,8 @@ beforeEach(() => {
   runtime = new FakeRuntime()
   bridge = makeBridge()
   runtime.activeBridge = bridge as unknown as DaniyaBridge
-  chat = new ChatRuntime({ runtime, registry, settingsFile, pet: () => pet })
+  files = new FileProposalService()
+  chat = new ChatRuntime({ runtime, registry, settingsFile, pet: () => pet, files })
 })
 
 afterEach(() => { fs.rmSync(dir, { recursive: true, force: true }) })
@@ -295,10 +298,10 @@ describe('turn 终态（B-6）', () => {
     fs.writeFileSync(target, 'old-content')
     saveSettings(settingsFile, { ...loadSettings(settingsFile), file: { workDir, autoApply: false } })
 
-    const { stream, files, sessionId } = await startConv('改文件')
+    const { stream, files: sent, sessionId } = await startConv('改文件')
     emit.chunk(sessionId, '好的，帮你改。\n\n```daniya-file\n' + JSON.stringify({ path: target, content: 'new-content' }) + '\n```\n改完了。')
     emit.idle(sessionId)
-    const fe = files()[0]
+    const fe = sent()[0]
     expect(fe.path).toBe(target)
     expect(fe.error).toBeUndefined()
     expect(fe.autoApplied).toBe(false)
@@ -306,6 +309,60 @@ describe('turn 终态（B-6）', () => {
     expect(deltas(stream)).not.toContain('daniya-file')
     expect(deltas(stream)).toContain('改完了')
     fs.rmSync(workDir, { recursive: true, force: true })
+  })
+
+  it('同会话附带→提案放行（跨轮仍有效）；跨会话附带→拒绝', async () => {
+    // 附件在工作目录之外：唯一授权路径是"该会话附带过"
+    const target = path.join(dir, 'attached.txt')
+    fs.writeFileSync(target, 'old-content')
+
+    const a = await startConv('会话A')
+    expect(chat.registerFiles(a.conv.id, [target]).ok).toBe(true)
+    emit.idle(a.sessionId)
+    // 第二轮提案仍放行：同会话授权跨轮持续有效
+    const s2 = makeSender()
+    const r2 = await chat.startReply(s2.sender, { conversationId: a.conv.id, content: '再改' })
+    expect(r2.ok).toBe(true)
+    emit.chunk(a.sessionId, '\n```daniya-file\n' + JSON.stringify({ path: target, content: 'new-a' }) + '\n```\n')
+    emit.idle(a.sessionId)
+    expect(s2.files()[0]?.error).toBeUndefined()
+    expect(s2.files()[0]?.resolvedPath).toBe(path.resolve(target))
+
+    // 会话 B 提案同一附件路径：授权不跨会话泄漏 → file:proposal error 帧
+    const b = await startConv('会话B')
+    emit.chunk(b.sessionId, '\n```daniya-file\n' + JSON.stringify({ path: target, content: 'new-b' }) + '\n```\n')
+    emit.idle(b.sessionId)
+    expect(b.files()[0]?.error).toContain('拒绝')
+    expect(fs.readFileSync(target, 'utf8')).toBe('old-content')
+  })
+
+  it('file:register/file:pick 会话校验：无 id 或未知会话拒绝', async () => {
+    const p = path.join(dir, 'a.txt')
+    fs.writeFileSync(p, 'x')
+    expect(chat.registerFiles('', [p])).toMatchObject({ ok: false, error: '会话不存在' })
+    expect(chat.registerFiles('no-such-conv', [p])).toMatchObject({ ok: false, error: '会话不存在' })
+    await expect(chat.pickFiles('no-such-conv')).resolves.toMatchObject({ files: [], error: '会话不存在' })
+
+    const conv = chat.createConversation()
+    expect(chat.registerFiles(conv.id, [p]).ok).toBe(true)
+  })
+
+  it('删除会话回收附件授权与未决提案', async () => {
+    const target = path.join(dir, 'attached.txt')
+    fs.writeFileSync(target, 'old-content')
+
+    const { conv, files: sent, sessionId } = await startConv('改文件')
+    chat.registerFiles(conv.id, [target])
+    emit.chunk(sessionId, '\n```daniya-file\n' + JSON.stringify({ path: target, content: 'new' }) + '\n```\n')
+    emit.idle(sessionId)
+    const proposalId = sent()[0].id
+    expect(proposalId).toBeTruthy()
+
+    await chat.deleteConversation(conv.id)
+    // 未决提案随会话回收：apply 返回不存在；授权集已清：同路径提案被拒
+    expect(files.applyProposal(proposalId).ok).toBe(false)
+    expect(files.createProposal(conv.id, target, 'x', { workDir: '', autoApply: false }).ok).toBe(false)
+    expect(fs.readFileSync(target, 'utf8')).toBe('old-content')
   })
 })
 
