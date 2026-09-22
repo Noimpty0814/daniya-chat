@@ -56,6 +56,7 @@ The agent host is reached through the ssh alias `fairybox` (bound in `~/.ssh/con
      `bypass` is what makes the session autonomous — approvals can't reach a detached session. The `devin` user and the dedicated box are the containment boundary. Dispatched sessions always run **SWE-2 Max** (`--model swe-2-max`) — pinning the model is deliberate, don't drop the flag.
 
    - Verify it took: `ssh fairybox 'tmux has-session -t spec-<name>'`. The user can watch or steer with `ssh -t fairybox 'tmux attach -t spec-<name>'`.
+   - Fresh worktrees trigger Devin's directory-trust prompt ("Do you trust the authors of this directory?"), which blocks a detached session headlessly — `has-session` still passes while the agent waits idle. After launching, capture the pane and clear it: `ssh fairybox 'tmux send-keys -t spec-<name> "1" Enter'` (or pre-trust `~/workspaces` in the box's Devin config).
 
 6. **Record the dispatch state** on the spec; commit and push to `main` — switch back from `feat/<name>` first, a state line committed on the feature branch is invisible to other sessions and pollutes its review diff. Confirm push succeeded before treating the state as shared:
 
