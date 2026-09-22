@@ -2,9 +2,13 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { dialog } from 'electron'
 import type { FileAttachment } from '../../shared/types'
+import { MAX_ATTACH_FILES } from '../../shared/consts'
 
 export const MAX_ATTACH_SIZE = 512 * 1024
 
+// 已知缺口：authorized 是进程级集合，登记后永不清空——实际语义是"本进程
+// 任一轮附带过的文件"，与 FILE_CONTRACT 承诺的"本轮对话中用户附带的文件"
+// 不一致（收窄授权语义归后续 FileProposalService 改造）。
 const authorized = new Set<string>()
 
 /** 前 8KB 含 NUL 字节判为二进制 */
@@ -39,8 +43,8 @@ export function registerFiles(paths: string[]): { ok: boolean; files: FileAttach
 export async function pickFiles(): Promise<{ files: FileAttachment[]; error?: string }> {
   const r = await dialog.showOpenDialog({ properties: ['openFile', 'multiSelections'] })
   if (r.canceled || r.filePaths.length === 0) return { files: [] }
-  const over = r.filePaths.length > 3 ? '最多附加 3 个文件' : undefined
-  const reg = registerFiles(r.filePaths.slice(0, 3))
+  const over = r.filePaths.length > MAX_ATTACH_FILES ? `最多附加 ${MAX_ATTACH_FILES} 个文件` : undefined
+  const reg = registerFiles(r.filePaths.slice(0, MAX_ATTACH_FILES))
   const error = over && reg.error ? `${over}；${reg.error}` : (over ?? reg.error)
   return { files: reg.files, error }
 }

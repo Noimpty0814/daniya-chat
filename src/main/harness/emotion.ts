@@ -1,10 +1,5 @@
 /**
  * EmotionParser —— 情绪标记 `{EMO:xx}` / 简写 `{happy}` 流式解析器。
- *
- * 本文件是 parser 的新归属地（dsh 重构后 deepseek/ 整体退役）。
- * `src/main/deepseek/emotion.ts` 暂存原样保留：`pet/coordinator.ts`
- * 的 `Emotion` 类型 import 仍指向旧路径（pet/** 属冻结面，T-4 统一改指本文件）。
- * 两份实现内容一致，行为以本文件为准。
  */
 export type Emotion = 'happy' | 'sad' | 'sleepy' | 'dismissive' | 'shy' | 'blush' | 'angry' | 'dark'
 const EMOTIONS: readonly Emotion[] = ['happy', 'sad', 'sleepy', 'dismissive', 'shy', 'blush', 'angry', 'dark']

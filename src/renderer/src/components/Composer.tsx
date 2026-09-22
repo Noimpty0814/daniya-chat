@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FileAttachment } from '../../../shared/types'
+import { MAX_ATTACH_FILES } from '../../../shared/consts'
 import { DragCounter } from '../state/dragCounter'
 
 export function Composer(props: {
@@ -29,12 +30,15 @@ export function Composer(props: {
     else setShotMsg(r.error ?? '截屏失败')
   }
 
+  const addFiles = (picked: FileAttachment[]): void => {
+    if (picked.length === 0) return
+    if (files.length + picked.length > MAX_ATTACH_FILES) setShotMsg(`最多附加 ${MAX_ATTACH_FILES} 个文件`)
+    setFiles([...files, ...picked].slice(0, MAX_ATTACH_FILES))
+  }
+
   const pick = async (): Promise<void> => {
     const { files: picked, error } = await window.api.pickFiles()
-    if (picked.length) {
-      if (files.length + picked.length > 3) setShotMsg('最多附加 3 个文件')
-      setFiles([...files, ...picked].slice(0, 3))
-    }
+    addFiles(picked)
     if (error) setShotMsg(error)
   }
 
@@ -54,10 +58,7 @@ export function Composer(props: {
         .filter(Boolean)
       if (paths.length === 0) return
       void window.api.registerFiles(paths).then(r => {
-        if (r.files.length) {
-          if (files.length + r.files.length > 3) setShotMsg('最多附加 3 个文件')
-          setFiles([...files, ...r.files].slice(0, 3))
-        }
+        addFiles(r.files)
         if (!r.ok && r.error) setShotMsg(r.error)
       })
     }
@@ -79,7 +80,7 @@ export function Composer(props: {
     <>
       {dragActive && (
         <div className="drop-overlay">
-          <div className="drop-overlay-box">松开以附加文件（最多 3 个文本文件）</div>
+          <div className="drop-overlay-box">{`松开以附加文件（最多 ${MAX_ATTACH_FILES} 个文本文件）`}</div>
         </div>
       )}
       <div className="composer">

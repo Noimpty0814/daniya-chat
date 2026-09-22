@@ -2,8 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { loadSettings, saveSettings, toView, DEFAULT_SETTINGS, applyView, setApiKey, getApiKey, type AppSettings } from './settings'
-import { DEFAULT_PERSONA } from './harness/persona'
+import { loadSettings, saveSettings, toView, DEFAULT_SETTINGS, applyView, setApiKey, getApiKey, DEFAULT_PERSONA, type AppSettings } from './settings'
 import type { AppSettingsView } from '../shared/types'
 
 vi.mock('electron', () => ({

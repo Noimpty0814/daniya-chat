@@ -199,29 +199,11 @@ describe('session.create / resume / delete', () => {
     ])
     expect(h.agents.resume).toHaveBeenCalledTimes(1)
     expect(h.agents.lastResumeOptions()?.resumeSessionId).toBe(SessionId('sess-1'))
-    expect(a.ok).toBe(true)
-    expect(b.history).toEqual(a.history)
+    expect(a).toEqual({ ok: true })
+    expect(b).toEqual(a)
     // 已活会话再 resume：直接命中注册表，不再调 resume
     await h.server.sessionResume({ sessionId: 'sess-1' })
     expect(h.agents.resume).toHaveBeenCalledTimes(1)
-  })
-
-  it('resume 返回投影历史（真实 session 事件）', async () => {
-    const h = harness()
-    await initialized(h)
-    const origStoreCreate = h.store.create.bind(h.store)
-    vi.spyOn(h.store, 'create').mockImplementation((id, options) => {
-      const session = origStoreCreate(id, options)
-      if (String(session.id) === 'sess-2') {
-        const msg = createUserMessage({ content: [{ type: 'text', text: 'hi' }], source: { kind: 'user' } })
-        session.append('user/message', msg, { surfaceOp: 'append' })
-      }
-      return session
-    })
-    const result = await h.server.sessionResume({ sessionId: 'sess-2' })
-    expect(result.history.length).toBe(1)
-    expect(result.history[0].role).toBe('user')
-    expect(result.history[0].content).toBe('hi')
   })
 
   it('delete dispose 活 agent 并回 ok；未知会话也幂等回 ok + 记 stderr', async () => {
@@ -419,17 +401,6 @@ describe('事件 → 通知映射', () => {
     h.ctx.emit('session/event', session, sessionEvent('tool/result', 4, { turn: 1, step: 1, message: resultMsg }))
     const result = notificationsOf(h, 'tool.result')[0].params as { callId: string; ok: boolean; preview: string; sessionId: string }
     expect(result).toEqual({ sessionId, callId: 'c1', ok: true, preview: 'ok output' })
-  })
-
-  it('session/event 原样转 session.event', async () => {
-    const h = harness()
-    await initialized(h)
-    const { fake } = await createSession(h)
-    const event = sessionEvent('turn/start', 1, { turn: 1 })
-    h.ctx.emit('session/event', fake.agent.session, event)
-    const passthrough = notificationsOf(h, 'session.event')
-    expect(passthrough.length).toBe(1)
-    expect((passthrough[0].params as { event: unknown }).event).toBe(event)
   })
 
   it('agent/error → error；request-error 终态已通知的同失败去重', async () => {

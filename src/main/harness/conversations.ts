@@ -64,10 +64,6 @@ export class ConversationRegistry {
     return this.entries.find(e => e.id === id)
   }
 
-  findBySessionId(sessionId: string): ConversationEntry | undefined {
-    return this.entries.find(e => e.sessionId === sessionId)
-  }
-
   /** 新建 registry 项（未落 sessionId）；置顶显示 */
   create(): ConversationEntry {
     const now = Date.now()

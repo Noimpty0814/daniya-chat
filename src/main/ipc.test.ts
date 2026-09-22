@@ -115,9 +115,7 @@ describe('chat:startReply 全链（fake-bridge 集成）', () => {
     const deltas = events().filter(e => e.type === 'delta').map(e => e.delta).join('')
     expect(deltas).toBe('你好，世界')
     expect(done.message?.content).toBe('你好，世界')
-    expect(done.aborted).toBeFalsy()
-    // EMO 标记剥离为情绪事件 + pet.emotion
-    expect(events().some(e => e.type === 'emotion' && e.emotion === 'happy')).toBe(true)
+    // EMO 标记剥离为 pet.emotion（情绪不进 chat:stream）
     expect(pet.emotion).toHaveBeenCalledWith('happy')
     expect(pet.bubble).toHaveBeenCalledWith(true)
     expect(pet.bubble).toHaveBeenCalledWith(false)
@@ -156,7 +154,7 @@ describe('chat:startReply 全链（fake-bridge 集成）', () => {
     expect(done.message?.tools).toEqual([{ name: 'pwsh', ok: true }])
   })
 
-  it('停止：[slow] 流未结束 → stopReply → cancel → done{aborted:true} 保留残文', async () => {
+  it('停止：[slow] 流未结束 → stopReply → cancel → done 保留残文', async () => {
     const { convId } = await newConversationWithKey()
     const { sender, events } = makeSender()
     const r = await invoke<StartReplyResult>('chat:startReply', { conversationId: convId, content: '[slow] 慢慢说' }, { sender })
@@ -164,7 +162,6 @@ describe('chat:startReply 全链（fake-bridge 集成）', () => {
     await waitEvent(events, e => e.type === 'delta')
     await invoke('chat:stopReply', { requestId: r.requestId })
     const done = await waitEvent(events, e => e.type === 'done')
-    expect(done.aborted).toBe(true)
     expect(done.message?.content).toContain('你好')
   })
 

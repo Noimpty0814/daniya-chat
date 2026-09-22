@@ -1,5 +1,5 @@
 /**
- * daniya-bridge 服务面 —— spec §5.2 的 9 个请求方法与 7 种通知的实现。
+ * daniya-bridge 服务面 —— spec §5.2 的 9 个请求方法与 6 种通知的实现。
  *
  * 会话注册表：`sessionId ↔ AgentHandle`，`ctx.agents` 为活 agent 权威；
  * create/resume 去重经 `sessionCreations` 在途表（同 id 并发只跑一次工厂）。
@@ -12,7 +12,7 @@
  * - `session/event`：`tool/call`/`tool/result` 转 `tool.call`/`tool.result`
  *   （args/preview 截断 ≤500 字符）；`assistant/message{interrupted}` 记 seq
  *   供 end 帧判 `aborted`；`turn/end{aborted}` 兜底补 `stream.end{aborted:true}`
- *   （同一 turn 已发过 aborted 终帧则不重复）。全部事件原样转 `session.event`。
+ *   （同一 turn 已发过 aborted 终帧则不重复）。
  * - `agent/status` → `agent.status`。
  * - `agent/request-error`（waterfall）：先 `next()` 再按终态与否转 `error`，
  *   并记 `turn:step:message` 去重紧随其后的 `agent/error`。
@@ -208,15 +208,15 @@ export class DaniyaBridgeServer {
   }
 
   /**
-   * `session.resume {sessionId}` → `{ok, history}`：经 `ResumeAgentOptions`
-   * 载入持久会话；已活会话直接返回其历史；同 id 并发 resume 去重。
+   * `session.resume {sessionId}` → `{ok}`：经 `ResumeAgentOptions`
+   * 载入持久会话；已活会话命中注册表即回 ok；同 id 并发 resume 去重。
+   * 历史由 `session.history` 独立投影，此处不回传。
    */
-  async sessionResume(params: Record<string, unknown>): Promise<{ ok: true; history: BridgeMessage[] }> {
+  async sessionResume(params: Record<string, unknown>): Promise<{ ok: true }> {
     this.assertInitialized()
     const sessionId = this.requireSessionId(params)
-    const rec = await this.getOrResume(sessionId)
-    const history = await this.readHistory(rec)
-    return { ok: true, history }
+    await this.getOrResume(sessionId)
+    return { ok: true }
   }
 
   /**
@@ -446,10 +446,6 @@ export class DaniyaBridgeServer {
     if (!this.initialized) throw new Error('daniya-bridge: initialize required')
   }
 
-  private async readHistory(rec: SessionRecord): Promise<BridgeMessage[]> {
-    return projectLiveSession(rec.handle.agent.session, this.ctx.attachments, this.diagnostic)
-  }
-
   /** 末事件时间作 updatedAt；取不到（eventCount 缺失/读失败）退化为 createdAt。 */
   private async lastActivityAt(snapshot: SessionPersistenceSnapshot): Promise<number> {
     const eventCount = snapshot.eventCount
@@ -533,7 +529,6 @@ export class DaniyaBridgeServer {
       default:
         break
     }
-    this.safeNotify('session.event', { sessionId, event })
   }
 
   private onAgentStatus(payload: { agent: Agent; status: string }): void {
