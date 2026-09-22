@@ -20,14 +20,15 @@
 - Linux boot 实测（wsl-local-0922）：**harness 在 Linux 完整 boot 成功**，35 entries ACTIVE、4 服务全解析、sandbox=workspace-write 生效、工具集 `[bash, web_fetch, web_search]`（cordis jsExpr 平台分支自动 pwsh↔bash 切换）；boot+断言+shutdown 全程 **0.51s** → harness boot 不是冷启动瓶颈，瓶颈在 Electron 侧与首启物化
 - 首启物化拷贝判定（PR #4）：唯一硬写点=boot 重写 `cordis.yml`（223B），其余数据面全落 DSH_HOME；拷贝非唯一解——推荐 **C 硬链接农场**（首启 IO 25s→3.5s、双倍磁盘 643MB→~13MB，保 .stamp/.tmp/B-7 全部保证，EXDEV 回退拷贝）+ **E 上游条件写**终态；D junction 壳备选（Linux 已实证）；B 随裁剪缩水正交但文件数 bound 收益有限 → `work/maps/slim-perf/first-boot-copy.md`；Windows 复核项 WR-1~6
 - 验证脚本缺口：`verify-profile.mjs` 断言 Windows 写死（persistent-pwsh 须 ACTIVE、bash 须不 ACTIVE、工具集含 pwsh）→ Linux 上正确行为被判失败，需平台化断言后才可作裁剪兜底
+- 死依赖判定已交付（feat/dead-deps-scan，`work/maps/slim-perf/dead-deps.md`）：linux 树 475 包实测 **351 dead / 121 alive / 3 unknown**，7 组累积删后 verify 恰 4 平台失败 + smoke 11 PASS；blocklist 353 项（win32 可裁 ~548MB/643MB）；unknown = sharp-wasm32/emnapi/node-addon-api；win32 boot 复核为 follow-up。另实测 ACTIVE 条目为 **36**（非 35，`include` 行计入口径差异）
 
 ## Frontier
 - [ ] spawn spec `verify-linux`：verify-profile.mjs 断言按 process.platform 分支（win32→pwsh 集 / linux→bash 集），并纳入 CI 可跑面 —— 阻塞项：它是"死依赖裁剪"验收的兜底工具
-- [~] 死依赖清单与可删性验证 — research `fairybox:spec-dead-deps-scan`：spec `work/specs/dead-deps-scan.md` 已派发，报告落 `work/maps/slim-perf/dead-deps.md`
+- [x] 死依赖清单与可删性验证 — research 已验收合并（PR #5）→ `work/maps/slim-perf/dead-deps.md`：351 dead / 121 alive / 3 unknown，blocklist 353 项可直接贴入 prepare-harness.mjs；**裁剪名单须保住 Linux boot 面**已落实（node-pty/koffi/node-addon-system-linux 等全部判 alive 不入列）
 - [x] 首启物化拷贝是否可省 — research 已验收合并（PR #4）：拷贝可省/可缩水，推荐硬链接农场 → `work/maps/slim-perf/first-boot-copy.md`
 - [ ] spawn spec `materialize-hardlink`：硬链接农场物化落地（方案 C；Windows 复核 WR-3 硬链接语义可在 spec 内标注待复核，不阻塞 Linux 实现与单测）
 - [ ] Windows 基线 checklist — task：给用户一份 pack 体积 + 冷启动 + 常驻内存测量步骤
-- [ ] spawn spec slim-installer：死依赖裁剪落地（依赖"死依赖清单"结论）
+- [ ] spawn spec slim-installer：死依赖裁剪落地——前置已齐（清单+blocklist 在 `work/maps/slim-perf/dead-deps.md`），spec 需含 win32 boot 复核步骤
 
 ## Fog
 - 常驻内存/CPU 的可疑来源（harness 常驻进程、pet-helper 轮询、渲染层）——等基线
