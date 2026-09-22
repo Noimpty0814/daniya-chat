@@ -5,6 +5,7 @@
  * @module daniya-bridge/tests/server
  */
 
+import { resolve } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
 import type { AssistantStreamFrame } from '@deepseek-ai/dsh-agent'
@@ -138,7 +139,9 @@ describe('session.create / resume / delete', () => {
     const { sessionId, fake } = await createSession(h)
     expect(sessionId).toMatch(/^daniya-/)
     const opts = h.agents.lastCreateOptions()
-    expect(opts?.meta).toEqual({ cwd: WORKDIR })
+    // initialize 对 workdir 做 resolve() 归一化——Windows 上返回原值，POSIX 上
+    // 拼上 cwd；断言对齐服务端归一化后的生效值而非字面量。
+    expect(opts?.meta).toEqual({ cwd: resolve(WORKDIR) })
     expect(opts?.agentOptions).toEqual({ provider: 'deepseek-official', model: 'deepseek-chat' })
     // setup 已在 create 内执行：首个事件为 sandbox/mode = workspace-write
     const first = fake.agent.session.eventAt(fake.agent.session.eventAt(0)!.seq)

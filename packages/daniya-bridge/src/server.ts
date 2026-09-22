@@ -44,8 +44,16 @@ import { SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionPersistence, SessionPersistenceSnapshot } from '@deepseek-ai/dsh-session-persistence'
 import { setSandboxMode } from '@deepseek-ai/dsh-sandbox-policy'
 import { PERSONA_PREFIX_SECTION } from '@deepseek-ai/dsh-system-prompt'
-import type { BridgeTransportPeer } from './protocol.js'
-import { projectEvents, projectLiveSession, type BridgeMessage, type Diagnostic } from './history.js'
+import type {
+  BridgeMessage,
+  BridgeNotificationMap,
+  BridgeNotificationMethod,
+  BridgeRequestMethod,
+  BridgeResultMap,
+  BridgeTransportPeer,
+  SessionSummary,
+} from './protocol.js'
+import { projectEvents, projectLiveSession, type Diagnostic } from './history.js'
 import { buildPersonaText } from './persona.js'
 
 /** 工具徽照搬预览的字符上限（spec：args/result preview ≤500）。 */
@@ -133,33 +141,38 @@ export class DaniyaBridgeServer {
   }
 
   /**
+   * 请求分派表：键集即契约——映射型约束使漏实现/漏声明一个方法成为编译错。
+   * handler 收裸 `Record<string, unknown>`（wire 数据不可信），各自的
+   * `typeof` 运行时防御不删；返回值被钉在 `BridgeResultMap[M]` 上。
+   */
+  private readonly dispatch: {
+    [M in BridgeRequestMethod]: (params: Record<string, unknown>) => Promise<BridgeResultMap[M]>
+  } = {
+    'initialize': params => this.initialize(params),
+    'session.create': () => this.sessionCreate(),
+    'session.resume': params => this.sessionResume(params),
+    'session.list': () => this.sessionList(),
+    'session.history': params => this.sessionHistory(params),
+    'session.delete': params => this.sessionDelete(params),
+    'prompt': params => this.prompt(params),
+    'cancel': params => this.cancel(params),
+    'shutdown': async () => {
+      await this.shutdown()
+      return { ok: true }
+    },
+  }
+
+  /**
    * 派发一个 JSON-RPC 请求。未知方法抛错（经协议层成为 `-32603`，与
    * 参照实现 sdk-server 的分派语义一致）。
    */
   async handleRequest(method: string, params: Record<string, unknown>): Promise<unknown> {
-    switch (method) {
-      case 'initialize':
-        return this.initialize(params)
-      case 'session.create':
-        return this.sessionCreate()
-      case 'session.resume':
-        return this.sessionResume(params)
-      case 'session.list':
-        return this.sessionList()
-      case 'session.history':
-        return this.sessionHistory(params)
-      case 'session.delete':
-        return this.sessionDelete(params)
-      case 'prompt':
-        return this.prompt(params)
-      case 'cancel':
-        return this.cancel(params)
-      case 'shutdown':
-        await this.shutdown()
-        return { ok: true }
-      default:
-        throw new Error(`method not found: ${method}`)
-    }
+    // hasOwn 守门：dispatch 是普通对象字面量，原型链成员（toString/valueOf 等）
+    // 不得命中——否则未知名会绕过 method not found 直接返回原型函数的调用结果。
+    if (!Object.hasOwn(this.dispatch, method)) throw new Error(`method not found: ${method}`)
+    const handler = this.dispatch[method as BridgeRequestMethod] as
+      (params: Record<string, unknown>) => Promise<unknown>
+    return handler(params)
   }
 
   /**
@@ -224,12 +237,12 @@ export class DaniyaBridgeServer {
    * ∪ 尚未落盘的活会话。`title` 恒为 `''`——显示标题与排序由主进程
    * conversations 登记簿自持；`updatedAt` 为末事件时间（取不到时退化为创建时间）。
    */
-  async sessionList(): Promise<{ sessionId: string; title: string; updatedAt: number }[]> {
+  async sessionList(): Promise<SessionSummary[]> {
     this.assertInitialized()
     const persistence = this.requirePersistence()
     const snapshots = await persistence.list()
     const seen = new Set<string>()
-    const rows: { sessionId: string; title: string; updatedAt: number }[] = []
+    const rows: SessionSummary[] = []
     for (const snapshot of snapshots) {
       const id = String(snapshot.header.id)
       seen.add(id)
@@ -474,8 +487,11 @@ export class DaniyaBridgeServer {
     return state
   }
 
-  /** 通知写失败只记 stderr——监听器内抛出会沿 cordis dispatch 回灌进 loop。 */
-  private safeNotify(method: string, params?: object): void {
+  /**
+   * 通知写失败只记 stderr——监听器内抛出会沿 cordis dispatch 回灌进 loop。
+   * `params` 受 `BridgeNotificationMap[M]` 约束：写错字段名是编译错。
+   */
+  private safeNotify<M extends BridgeNotificationMethod>(method: M, params: BridgeNotificationMap[M]): void {
     try {
       this.transport.notify(method, params)
     } catch (error) {

@@ -9,7 +9,8 @@ import { FileProposalParser, type ProposalResult } from './files/proposal'
 import { EmotionParser, type Emotion } from './harness/emotion'
 import { ConversationRegistry, NEW_CONVERSATION_TITLE } from './harness/conversations'
 import { HarnessUnavailableError } from './harness/process'
-import { Bridge, BridgeProtocolError, BridgeTimeoutError, BridgeTransportError, type BridgeMessage, type Json, type SessionSummary } from './harness/bridge'
+import { BridgeProtocolError, BridgeTimeoutError, BridgeTransportError } from './harness/bridge'
+import { DaniyaBridge, type BridgeMessage, type BridgeNotification, type SessionSummary } from './harness/client'
 import type { PetCoordinator } from './pet/coordinator'
 
 /**
@@ -24,10 +25,10 @@ import type { PetCoordinator } from './pet/coordinator'
 
 /** ipc 层对运行时的最小依赖面（HarnessRuntime 结构满足；测试可注入 fake） */
 export interface HarnessLike {
-  ensure(): Promise<Bridge>
-  readonly activeBridge: Bridge | null
+  ensure(): Promise<DaniyaBridge>
+  readonly activeBridge: DaniyaBridge | null
   readonly isAlive: boolean
-  setNotificationHandler(fn: ((method: string, params: Json) => void) | null): void
+  setNotificationHandler(fn: ((notification: BridgeNotification) => void) | null): void
   setTransportDownHandler(fn: (() => void) | null): void
 }
 
@@ -55,15 +56,13 @@ interface ActiveRequest {
   model: string
 }
 
-function str(v: unknown): string { return typeof v === 'string' ? v : '' }
-
 function dataUrlToImage(u: string): { data: string; mimeType: string } | null {
   const m = /^data:([^;,]+);base64,(.+)$/s.exec(u)
   return m ? { mimeType: m[1], data: m[2] } : null
 }
 
-function mapBridgeErrorMessage(msg: unknown): string {
-  const m = str(msg) || '未知错误'
+function mapBridgeErrorMessage(msg: string): string {
+  const m = msg || '未知错误'
   if (/401|unauthorized|invalid.{0,12}key|api.?key/i.test(m)) return 'API Key 无效，请在设置中检查'
   if (/model.{0,24}(not.?found|不存在)|404/i.test(m)) return '模型不存在，请在设置中检查模型名'
   if (/timeout|超时/i.test(m)) return '请求超时，请重试'
@@ -156,13 +155,13 @@ export function registerIpc(opts: RegisterIpcOpts): void {
     pet().bubble(false)
   }
 
-  const handleNotification = (method: string, params: Json): void => {
-    const sessionId = str(params.sessionId)
-    switch (method) {
+  const handleNotification = (n: BridgeNotification): void => {
+    const sessionId = n.params.sessionId ?? ''
+    switch (n.method) {
       case 'stream.chunk': {
         const r = findBySession(sessionId)
         if (!r) return
-        const { display, emotion } = r.emotionParser.feed(str(params.text))
+        const { display, emotion } = r.emotionParser.feed(n.params.text)
         if (emotion) {
           r.emotion = emotion
           pet().emotion(emotion)
@@ -184,32 +183,32 @@ export function registerIpc(opts: RegisterIpcOpts): void {
         // 一个 turn 可能是 中间消息(带 toolCalls) → tool.* → 最终消息 多帧序列，
         // 首个 stream.end 就收尾会把后续 tool/流帧全部丢掉（B-6）。
         // 正常终态由 agent.status→idle 落地；aborted 终帧是 turn 级取消信号，可直接收尾。
-        if (params.aborted === true) finishRequest(r)
+        if (n.params.aborted === true) finishRequest(r)
         return
       }
       case 'tool.call': {
         const r = findBySession(sessionId)
         if (!r) return
-        const callId = str(params.callId)
-        const name = str(params.tool) || 'tool'
+        const callId = n.params.callId
+        const name = n.params.tool || 'tool'
         r.toolNames.set(callId, name)
         r.tools.push({ name, callId })
-        send(r, { type: 'tool', tool: { name, callId, preview: str(params.argsPreview) || undefined } })
+        send(r, { type: 'tool', tool: { name, callId, preview: n.params.argsPreview || undefined } })
         return
       }
       case 'tool.result': {
         const r = findBySession(sessionId)
         if (!r) return
-        const callId = str(params.callId)
-        const ok = params.ok === true
+        const callId = n.params.callId
+        const ok = n.params.ok === true
         const badge = r.tools.find(t => t.callId === callId)
         if (badge) badge.ok = ok
         const name = r.toolNames.get(callId) ?? badge?.name ?? 'tool'
-        send(r, { type: 'tool', tool: { name, callId, ok, preview: str(params.preview) || undefined } })
+        send(r, { type: 'tool', tool: { name, callId, ok, preview: n.params.preview || undefined } })
         return
       }
       case 'error': {
-        const text = mapBridgeErrorMessage(params.message)
+        const text = mapBridgeErrorMessage(n.params.message)
         const r = findBySession(sessionId)
         if (r) { failRequest(r, text); return }
         if (lastSender && !lastSender.isDestroyed()) {
@@ -218,7 +217,7 @@ export function registerIpc(opts: RegisterIpcOpts): void {
         return
       }
       case 'agent.status': {
-        if (params.status !== 'idle') return
+        if (n.params.status !== 'idle') return
         // 流终态兜底：正常 stream.end 先行时此处只剩 pet.bubble 复位
         const r = findBySession(sessionId)
         if (r) finishRequest(r)
@@ -230,8 +229,8 @@ export function registerIpc(opts: RegisterIpcOpts): void {
     }
   }
 
-  runtime.setNotificationHandler((method, params) => {
-    try { handleNotification(method, params) } catch (err) { console.warn('[ipc] bridge 通知处理失败:', err) }
+  runtime.setNotificationHandler(n => {
+    try { handleNotification(n) } catch (err) { console.warn('[ipc] bridge 通知处理失败:', err) }
   })
   runtime.setTransportDownHandler(() => {
     liveSessions.clear()
@@ -241,9 +240,9 @@ export function registerIpc(opts: RegisterIpcOpts): void {
   })
 
   /** sessionId 保证在本运行时内已 attach（create 或 resume 一次） */
-  const ensureLiveSession = async (bridge: Bridge, sessionId: string): Promise<void> => {
+  const ensureLiveSession = async (bridge: DaniyaBridge, sessionId: string): Promise<void> => {
     if (liveSessions.has(sessionId)) return
-    await bridge.request('session.resume', { sessionId })
+    await bridge.sessions.resume(sessionId)
     liveSessions.add(sessionId)
   }
 
@@ -252,7 +251,7 @@ export function registerIpc(opts: RegisterIpcOpts): void {
     // bridge 契约保证 dsh title 恒 ''（server.ts sessionList），标题只有 titleOverride 一个真源
     title: e.titleOverride || NEW_CONVERSATION_TITLE,
     createdAt: e.createdAt,
-    updatedAt: typeof dsh?.updatedAt === 'number' ? dsh.updatedAt : e.updatedAt
+    updatedAt: dsh?.updatedAt ?? e.updatedAt
   })
 
   ipcMain.handle('chat:listConversations', async (): Promise<ConversationMeta[]> => {
@@ -261,8 +260,7 @@ export function registerIpc(opts: RegisterIpcOpts): void {
     const b = runtime.activeBridge
     if (b && !b.isDead) {
       try {
-        const r = await b.request<SessionSummary[] | { sessions?: SessionSummary[] }>('session.list', {})
-        dshList = Array.isArray(r) ? r : (r.sessions ?? [])
+        dshList = await b.sessions.list()
       } catch { /* harness 不在线时降级 registry-only */ }
     }
     const bySession = new Map(dshList.map(s => [s.sessionId, s]))
@@ -277,12 +275,12 @@ export function registerIpc(opts: RegisterIpcOpts): void {
     for (const r of [...activeByRequest.values()]) {
       if (r.conversationId !== p.id) continue
       dropRequest(r)
-      void runtime.activeBridge?.request('cancel', { sessionId: r.sessionId }).catch(() => {})
+      void runtime.activeBridge?.cancel(r.sessionId).catch(() => {})
     }
     const entry = registry.get(p.id)
     const b = runtime.activeBridge
     if (entry?.sessionId && b && !b.isDead) {
-      try { await b.request('session.delete', { sessionId: entry.sessionId }) } catch { /* dsh 侧删除失败不阻断本地登记删除 */ }
+      try { await b.sessions.delete(entry.sessionId) } catch { /* dsh 侧删除失败不阻断本地登记删除 */ }
       liveSessions.delete(entry.sessionId)
     }
     historyCache.delete(p.id)
@@ -295,8 +293,7 @@ export function registerIpc(opts: RegisterIpcOpts): void {
     try {
       const bridge = await runtime.ensure()
       await ensureLiveSession(bridge, entry.sessionId)
-      const r = await bridge.request<{ messages?: BridgeMessage[] }>('session.history', { sessionId: entry.sessionId })
-      const raw = r.messages ?? []
+      const raw = await bridge.sessions.history(entry.sessionId)
       // 'tool' 角色消息是工具结果（不进用户可见气泡），但其 tool-result 块回填徽照搬终态
       const okByCall = new Map<string, boolean>()
       for (const m of raw) {
@@ -340,7 +337,7 @@ export function registerIpc(opts: RegisterIpcOpts): void {
     const settings = loadSettings(settingsFile)
     if (!getApiKey(settings)) return { ok: false, error: '请先在设置中填写 API Key' }
 
-    let bridge: Bridge
+    let bridge: DaniyaBridge
     try {
       bridge = await runtime.ensure()
     } catch (err) {
@@ -351,7 +348,7 @@ export function registerIpc(opts: RegisterIpcOpts): void {
     let sessionId = entry.sessionId
     try {
       if (!sessionId) {
-        const created = await bridge.request<{ sessionId: string }>('session.create', {})
+        const created = await bridge.sessions.create()
         sessionId = created.sessionId
         registry.setSessionId(p.conversationId, sessionId)
         liveSessions.add(sessionId)
@@ -376,9 +373,7 @@ export function registerIpc(opts: RegisterIpcOpts): void {
     activeByRequest.set(req.requestId, req)
     activeBySession.set(sessionId, req)
     try {
-      await bridge.request<{ messageId: string }>('prompt', {
-        sessionId, text: turn.content, ...(images.length ? { images } : {})
-      }, { timeoutMs: 15_000 })
+      await bridge.prompt(sessionId, turn.content, images, { timeoutMs: 15_000 })
     } catch (err) {
       dropRequest(req)
       return { ok: false, error: bridgeErrorText(err) }
@@ -403,7 +398,7 @@ export function registerIpc(opts: RegisterIpcOpts): void {
   ipcMain.handle('chat:stopReply', (_e, p: { requestId: string }) => {
     const r = activeByRequest.get(p.requestId)
     if (!r) return
-    void runtime.activeBridge?.request('cancel', { sessionId: r.sessionId }).catch(() => {})
+    void runtime.activeBridge?.cancel(r.sessionId).catch(() => {})
   })
 
   ipcMain.handle('settings:get', () => toView(loadSettings(settingsFile)))
@@ -449,7 +444,7 @@ export function registerIpc(opts: RegisterIpcOpts): void {
 /** BridgeMessage → ChatMessage 投影：assistant 原文重跑 parser 还原 display（EMO 标记/提案块不入气泡）；okByCall 回填徽照搬终态 */
 function projectMessage(m: BridgeMessage, okByCall: Map<string, boolean>): ChatMessage {
   const role = m.role === 'assistant' ? 'assistant' : 'user'
-  let content = typeof m.content === 'string' ? m.content : ''
+  let content = m.content
   if (role === 'user' && content) content = stripFileContext(content)
   if (role === 'assistant' && content) {
     const ep = new EmotionParser()
@@ -461,18 +456,18 @@ function projectMessage(m: BridgeMessage, okByCall: Map<string, boolean>): ChatM
     const d3 = fp.end()
     content = d1.display + d2.display + d3.display
   }
-  const images = Array.isArray(m.images)
-    ? m.images.filter(i => typeof i.dataUrl === 'string').map(i => ({ id: i.id ?? randomUUID(), dataUrl: i.dataUrl! }))
+  const images = m.images !== undefined
+    ? m.images.filter((i): i is typeof i & { dataUrl: string } => i.dataUrl !== undefined).map(i => ({ id: i.id, dataUrl: i.dataUrl }))
     : undefined
-  const tools = Array.isArray(m.toolCalls)
+  const tools = m.toolCalls !== undefined
     ? m.toolCalls.map(t => ({ name: t.name, ok: t.ok ?? okByCall.get(t.callId) }))
     : undefined
   return {
-    id: typeof m.id === 'string' && m.id ? m.id : randomUUID(),
+    id: m.id,
     role, content, images,
-    files: Array.isArray(m.files) ? m.files.map(f => ({ name: f.name, path: '' })) : undefined,
+    files: m.files !== undefined ? m.files.map(f => ({ name: f.name, path: '' })) : undefined,
     tools,
-    model: typeof m.model === 'string' ? m.model : undefined,
-    createdAt: typeof m.createdAt === 'number' ? m.createdAt : Date.now()
+    model: m.model,
+    createdAt: m.createdAt
   }
 }

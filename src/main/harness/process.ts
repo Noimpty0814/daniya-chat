@@ -25,7 +25,8 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
-import { Bridge, BridgeTransportError, type Json } from './bridge'
+import { BridgeTransportError } from './bridge'
+import { DaniyaBridge, type BridgeNotification } from './client'
 
 export interface HarnessLaunchContext {
   apiKey: string | null
@@ -174,13 +175,13 @@ function exitsWithin(child: ChildProcess, ms: number): Promise<boolean> {
 
 export class HarnessRuntime {
   private child: ChildProcess | null = null
-  private bridge: Bridge | null = null
-  private starting: Promise<Bridge> | null = null
+  private bridge: DaniyaBridge | null = null
+  private starting: Promise<DaniyaBridge> | null = null
   /** 函数源 spec 解析一次并缓存：prewarm 与 ensure 共享同一物化，避免并发双拷 */
   private specCache: Promise<HarnessSpawnSpec> | null = null
   private unavailable = false
   private shuttingDown = false
-  private notificationHandler: ((method: string, params: Json) => void) | null = null
+  private notificationHandler: ((notification: BridgeNotification) => void) | null = null
   private transportDownHandler: (() => void) | null = null
   private readonly opts: HarnessRuntimeOptions
 
@@ -189,7 +190,7 @@ export class HarnessRuntime {
   }
 
   /** 注册协议通知分发（每个新 bridge 实例都会接上）；IPC 层装配时调用一次。 */
-  setNotificationHandler(fn: ((method: string, params: Json) => void) | null): void {
+  setNotificationHandler(fn: ((notification: BridgeNotification) => void) | null): void {
     this.notificationHandler = fn
   }
 
@@ -205,14 +206,14 @@ export class HarnessRuntime {
   get isUnavailable(): boolean { return this.unavailable }
 
   /** 当前活跃桥（未启动/已死为 null） */
-  get activeBridge(): Bridge | null { return this.bridge }
+  get activeBridge(): DaniyaBridge | null { return this.bridge }
 
   /**
    * 惰性启动：有活桥直接返回；否则 spawn + initialize。
    * 每次调用带一次重启额度（spec §10"重启一次仍败→运行时不可用"）；
    * 并发 ensure 共享同一次启动。
    */
-  async ensure(): Promise<Bridge> {
+  async ensure(): Promise<DaniyaBridge> {
     if (this.bridge && !this.bridge.isDead && this.isAlive) return this.bridge
     if (this.unavailable) throw new HarnessUnavailableError()
     if (this.starting) return this.starting
@@ -224,7 +225,7 @@ export class HarnessRuntime {
     }
   }
 
-  private async startWithRetry(): Promise<Bridge> {
+  private async startWithRetry(): Promise<DaniyaBridge> {
     let lastErr: unknown = null
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
@@ -277,7 +278,7 @@ export class HarnessRuntime {
     return this.specCache
   }
 
-  private async startAndInit(): Promise<Bridge> {
+  private async startAndInit(): Promise<DaniyaBridge> {
     const ctx = this.opts.getLaunchContext()
     const spec = await this.resolveSpec()
     this.shuttingDown = false
@@ -291,8 +292,8 @@ export class HarnessRuntime {
     child.once('exit', () => { this.handleTransportDown(child) })
     child.once('error', () => { this.handleTransportDown(child) })
 
-    const bridge = new Bridge(child.stdout!, child.stdin!)
-    bridge.onNotification((m, p) => this.notificationHandler?.(m, p))
+    const bridge = new DaniyaBridge(child.stdout!, child.stdin!)
+    bridge.onAny(n => this.notificationHandler?.(n))
     bridge.onClose(() => { this.handleTransportDown(child) })
     const spawnError = new Promise<never>((_, reject) => {
       child.once('error', (e) => { reject(e) })
@@ -300,7 +301,7 @@ export class HarnessRuntime {
     try {
       await Promise.race([
         // workdir 空时回退 cwd，与 patch 中 `DANIYA_WORKDIR || process.cwd()` 同语义（子进程继承父 cwd）
-        bridge.request('initialize', { workdir: ctx.workDir || process.cwd(), model: ctx.model }, { timeoutMs: this.opts.initializeTimeoutMs ?? 10_000 }),
+        bridge.initialize(ctx.workDir || process.cwd(), ctx.model, { timeoutMs: this.opts.initializeTimeoutMs ?? 10_000 }),
         spawnError
       ])
     } catch (err) {
@@ -362,7 +363,7 @@ export class HarnessRuntime {
     const bridge = this.bridge
     if (bridge && !bridge.isDead) {
       try {
-        await bridge.request('shutdown', {}, { timeoutMs: this.opts.shutdownRequestTimeoutMs ?? 3_000 })
+        await bridge.shutdown({ timeoutMs: this.opts.shutdownRequestTimeoutMs ?? 3_000 })
       } catch { /* 协议层失败不阻塞信号阶梯 */ }
     }
     await this.drainChild(child)

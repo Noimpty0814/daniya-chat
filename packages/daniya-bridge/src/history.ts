@@ -17,44 +17,8 @@ import type { AttachmentStore, ImageAttachmentRef } from '@deepseek-ai/dsh-attac
 import type { ContentBlock, Message } from '@deepseek-ai/dsh-llm'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import { deriveEventMessage, foldSurface, SessionSeq } from '@deepseek-ai/dsh-session'
-
-/** 历史消息中的图像引用；`dataUrl` 在能读出附件字节时填充（还原 `ImagePart`）。 */
-export interface BridgeImage {
-  id: string
-  dataUrl?: string
-  mediaType: string
-  width: number
-  height: number
-  name?: string
-}
-
-/** 历史消息中的文件引用（dsh 不存原路径，只有名称与字节数）。 */
-export interface BridgeFile {
-  name: string
-  bytes: number
-}
-
-/** 消息携带的工具调用信息：assistant 消息列出发起的调用，tool 消息回填结果。 */
-export interface BridgeToolCall {
-  callId: string
-  name: string
-  ok?: boolean
-}
-
-/**
- * spec §5.2 `BridgeMessage`：字段按 `{id, role, content, images?, toolCalls?, createdAt}`
- * 对齐，`files?`/`model?` 为还原 `ChatMessage` 所需的超集字段。
- */
-export interface BridgeMessage {
-  id: string
-  role: 'user' | 'assistant' | 'tool'
-  content: string
-  images?: BridgeImage[]
-  files?: BridgeFile[]
-  toolCalls?: BridgeToolCall[]
-  model?: string
-  createdAt: number
-}
+// 线类型唯一真相在 protocol.ts（零导入铁律见该文件头注）；本模块只导入、不扩展。
+import type { BridgeFile, BridgeImage, BridgeMessage, BridgeToolCall } from './protocol.js'
 
 /** 诊断输出（stderr）；保持协议 stdout 纯净。 */
 export type Diagnostic = (message: string) => void
