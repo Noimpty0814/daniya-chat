@@ -1,14 +1,14 @@
 /**
  * ConversationRegistry —— 会话登记簿（`userData/conversations.json`）。
  *
- * 职责（spec §6 / ticket T-3）：
+ * 职责：
  * - conversationId（渲染层可见 id）↔ sessionId（dsh 会话 id）映射；
  * - 显示顺序与标题覆盖自研侧维护：rename 写 titleOverride，
  *   listConversations 时以 `override ?? dsh title ?? '新会话'` 展示；
  * - 新建会话只登记 registry 项（sessionId 为空），dsh session 惰性到首发消息时建。
  *
  * 落盘格式 `{version:1, conversations: ConversationEntry[]}`，数组序即显示序（最新在前）。
- * 与旧 Store 的 `index.json` + `conversations/` 文件无冲突（spec §7：旧文件保留不读）。
+ * 与旧 Store 的 `index.json` + `conversations/` 文件无冲突（旧文件保留不读）。
  */
 import fs from 'node:fs'
 import path from 'node:path'

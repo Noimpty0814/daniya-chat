@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * fake-bridge —— daniya-bridge 协议子集 mock 进程（T-3 测试夹具）。
+ * fake-bridge —— daniya-bridge 协议子集 mock 进程（测试夹具）。
  *
- * 按行分帧 JSON-RPC 2.0（stdin 收 / stdout 发），实现 spec §5.2 子集：
+ * 按行分帧 JSON-RPC 2.0（stdin 收 / stdout 发），实现协议子集：
  *   initialize / session.create / session.resume / session.list / session.history /
  *   session.delete / prompt / cancel / shutdown
  * 通知：stream.chunk / stream.end / tool.call / tool.result / error / agent.status。

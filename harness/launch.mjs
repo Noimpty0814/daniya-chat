@@ -9,7 +9,7 @@
  * - `DSH_HOME` 仍隔离数据面：会话日志（dshHomePath('sessions')）、附件存储、
  *   家目录 patch 层；dev 默认 `<repo>/.dev-dsh-home`，env 可覆盖。
  * - stdin/stdout 归 daniya-bridge 协议独占：本脚本不写 stdout；stdin 打开期间
- *   进程存活，stdin EOF → shutdown（复刻 sdk-app-startup 的 EOF 语义，T-2 桥接管后由其负责）。
+ *   进程存活，stdin EOF → shutdown（复刻 sdk-app-startup 的 EOF 语义，桥接管后由其负责）。
  *
  * 用法：node harness/launch.mjs
  * env：DSH_HOME、DEEPSEEK_API_KEY、DEEPSEEK_BASE_URL、DANIYA_SETTINGS_FILE、DANIYA_WORKDIR
@@ -23,7 +23,7 @@ const harnessDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(harnessDir, '..')
 const profileDir = resolve(harnessDir, 'profile')
 
-// dev 默认 home；进程 env 优先（T-3 spawn 注入用户态 home 时同一路径生效）。
+// dev 默认 home；进程 env 优先（主进程 spawn 注入用户态 home 时同一路径生效）。
 if (process.env.DSH_HOME === undefined || process.env.DSH_HOME.trim() === '') {
   process.env.DSH_HOME = resolve(repoRoot, '.dev-dsh-home')
 }

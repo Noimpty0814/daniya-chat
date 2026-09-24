@@ -9,7 +9,7 @@ import { DEFAULT_EMOTION_KEYS, isValidComboChar } from './pet/keys'
  *
  * 用户可在设置页编辑（settings.systemPrompt 默认值）；harness 侧由 daniya-bridge
  * 插件每轮读 settings.json 的 systemPrompt 字段并追加 EMOTION_CONTRACT / FILE_CONTRACT
- * 后注入 system-prompt 段（见 spec §5.1），主进程不再自行拼接契约。
+ * 后注入 system-prompt 段，主进程不再自行拼接契约。
  */
 export const DEFAULT_PERSONA = [
   '你是达妮娅（Daniya）——不是 AI，不是助手，不是任何程序。你就是一个女孩，如今住在用户的桌面上，陪着用户。',
@@ -23,7 +23,7 @@ export const DEFAULT_PERSONA = [
 export interface AppSettings {
   apiKeyEncrypted: string | null
   baseUrl: string
-  /** 单模型：文本与图像输入共用（原 textModel/visionModel 合并，spec §7） */
+  /** 单模型：文本与图像输入共用（原 textModel/visionModel 合并） */
   model: string
   systemPrompt: string
   pet: { enabled: boolean; exePath: string; exeName: string }
@@ -34,7 +34,7 @@ export interface AppSettings {
 export const DEFAULT_SETTINGS: AppSettings = {
   apiKeyEncrypted: null,
   baseUrl: 'https://api.deepseek.com',
-  // TODO(V-2)：实测选定支持图像输入的默认型号后替换（现为旧 textModel 占位）
+  // TODO：实测选定支持图像输入的默认型号后替换（现为旧 textModel 占位）
   model: 'deepseek-flash',
   systemPrompt: DEFAULT_PERSONA,
   pet: { enabled: true, exePath: 'E:\\迅雷下载\\达妮娅-带表情版\\A-达妮娅\\Bongo Cat Mver.exe', exeName: 'Bongo Cat Mver.exe' },
@@ -42,7 +42,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   file: { workDir: '', autoApply: false }
 }
 
-/** 旧版设置文件中已被删除的字段（一次性迁移清理对象，spec §7） */
+/** 旧版设置文件中已被删除的字段（一次性迁移清理对象） */
 const LEGACY_KEYS = ['search', 'textModel', 'visionModel', 'searchKeyEncrypted', 'bochaKeyEncrypted'] as const
 
 export function loadSettings(file: string): AppSettings {
@@ -54,7 +54,7 @@ export function loadSettings(file: string): AppSettings {
   const s: AppSettings = {
     apiKeyEncrypted: typeof raw.apiKeyEncrypted === 'string' || raw.apiKeyEncrypted === null ? raw.apiKeyEncrypted : null,
     baseUrl: typeof raw.baseUrl === 'string' ? raw.baseUrl : DEFAULT_SETTINGS.baseUrl,
-    // 迁移取值优先级：现 model > 旧 visionModel > 旧 textModel —— 单模型须保住图像输入能力（V-2 再复核）
+    // 迁移取值优先级：现 model > 旧 visionModel > 旧 textModel —— 单模型须保住图像输入能力（待复核）
     model: pickModel(raw),
     systemPrompt: typeof raw.systemPrompt === 'string' ? raw.systemPrompt : DEFAULT_SETTINGS.systemPrompt,
     pet: { ...DEFAULT_SETTINGS.pet, ...(isObj(raw.pet) ? raw.pet : {}) } as AppSettings['pet'],
@@ -78,7 +78,7 @@ function pickModel(raw: Record<string, unknown>): string {
 }
 
 /**
- * 一次性迁移（spec §7）：检测到旧字段（search.* / 双模型）或 bocha-key.enc 残留时
+ * 一次性迁移：检测到旧字段（search.* / 双模型）或 bocha-key.enc 残留时
  * 回写清理后的 settings.json 并删除 bocha-key.enc；失败静默不阻断加载。
  */
 function migrateLegacySettings(file: string, raw: Record<string, unknown>, s: AppSettings): void {

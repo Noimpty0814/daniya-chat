@@ -1,5 +1,5 @@
 /**
- * Bridge —— daniya-bridge 协议客户端（spec §5.2）。
+ * Bridge —— daniya-bridge 协议客户端。
  *
  * 传输：harness 子进程 stdio，按行分帧 JSON-RPC 2.0。
  * - 请求：`{jsonrpc:'2.0', id, method, params}` → `{id, result}` / `{id, error:{code,message}}`

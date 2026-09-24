@@ -1,7 +1,7 @@
 /**
  * 人设段 —— 每次 system-prompt 组装时重读 settings 文件并拼接文本契约。
  *
- * 现行语义（spec §5.1）：`systemPrompt` 字段 + EMOTION_CONTRACT + FILE_CONTRACT
+ * 现行语义：`systemPrompt` 字段 + EMOTION_CONTRACT + FILE_CONTRACT
  * + `用户当前工作目录：<workdir>`，四段以空行相连。文件每轮重读、不缓存，
  * 保持"设置页改完，下一条消息即生效"。
  *

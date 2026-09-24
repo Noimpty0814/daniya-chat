@@ -1,15 +1,15 @@
 /**
  * HarnessRuntime —— dsh 运行时子进程的 spawn 管理与协议接入。
  *
- * 职责（spec §3/§6/§10、ticket T-3）：
- * - spawn：以真正的 Node 运行时跑 `node harness/launch.mjs`（T-1 交付的
- *   app-owned launcher，就地加载 profile）；宿主解析见 defaultHarnessSpec——
+ * 职责：
+ * - spawn：以真正的 Node 运行时跑 `node harness/launch.mjs`
+ *   （app-owned launcher，就地加载 profile）；宿主解析见 defaultHarnessSpec——
  *   electron-as-node 在 ConPTY 下无控制台，windows-acl runner 以 execPath 为
  *   宿主会让 pwsh 工具静默死（B-7），故 packaged 自带 runtime/node.exe。
  *   env 注入 DEEPSEEK_API_KEY / DEEPSEEK_BASE_URL / DSH_HOME /
  *   DANIYA_SETTINGS_FILE / DANIYA_WORKDIR（凭据经 getLaunchContext 由调用方解密注入，不明文落盘）。
  * - 惰性启动：首个 startReply / getMessages 需要时 ensure()；应用启动不预热。
- * - initialize 握手（10s 超时，spec §10）；启动失败重试一次，仍败置
+ * - initialize 握手（10s 超时）；启动失败重试一次，仍败置
  *   `unavailable`，由 IPC 层映射"运行时不可用，请重启应用"。
  * - 崩溃检测：child exit / 传输死亡 → 丢弃桥、回调 onTransportDown；
  *   下一次 ensure() 重新拉起（每次 ensure 自带一次重启额度）。
@@ -17,7 +17,7 @@
  *   `shutdown` 请求 → 等待退出 → stdin EOF → SIGTERM（POSIX）→ SIGKILL，逐级有界等待。
  * - stdio：stdout = 协议（Bridge 接管），stderr 加 `[harness]` 前缀转发 console。
  *
- * 启动命令以 harness/README.md 为准（T-1 已交付）：
+ * 启动命令以 harness/README.md 为准：
  * `node harness/launch.mjs` —— launch.mjs 用 loadProfileDirectory + runProfile
  * 就地加载仓库内 profile（方案 C），stdin/stdout 归 bridge 协议，stdin EOF → shutdown。
  * 不用 `dsh --profile`（名字解析限 $DSH_HOME/profiles 下，见 README §Startup approach）。
@@ -95,14 +95,14 @@ export async function defaultHarnessSpec(opts: {
   appDir: string
   resourcesPath: string
   dshHome: string
-  /** 物化大拷贝进行中回调（B-8：升级首启拷贝 GB 级，给 UI 一个可见状态） */
+  /** 物化进行中回调（B-8：升级首启物化大体积依赖树，给 UI 一个可见状态） */
   onMaterialize?: (active: boolean) => void
 }): Promise<HarnessSpawnSpec> {
   const harnessDir = opts.isPackaged
     ? await ensureHarnessMaterialized(path.join(opts.resourcesPath, 'harness'), path.join(opts.dshHome, 'app'), opts.onMaterialize)
     : path.join(opts.appDir, 'harness')
   if (!fs.existsSync(path.join(harnessDir, LAUNCHER_NAME))) {
-    // dev 下 harness/launch.mjs 必然在仓库内；缺失说明 T-1 交付不完整——报错由 ensure() 走不可用路径
+    // dev 下 harness/launch.mjs 必然在仓库内；缺失说明 harness 侧不完整——报错由 ensure() 走不可用路径
     throw new HarnessUnavailableError(new Error(`harness 启动器不存在：${path.join(harnessDir, LAUNCHER_NAME)}`))
   }
   const bundled = path.join(harnessDir, 'runtime', 'node.exe')
@@ -131,7 +131,7 @@ const REAL_COPY_NAMES = new Set(['.stamp', 'cordis.yml'])
 /**
  * 硬链接农场填充 staging（first-boot-copy 方案 C）：逐目录 mkdir、逐文件 link——
  * 26.5k 文件的物化从 ~25s 整树拷贝降到 ~3.5s，边际磁盘 ~13MB（报告 §3-M2）。
- * 假设：模板内无符号链接（prepare-harness.mjs V-7 断言包内为零）；若未来出现，
+ * 假设：模板内无符号链接（prepare-harness.mjs 断言包内为零）；若未来出现，
  * link 其路径即共享 inode（按文件处理），语义届时另议。
  * 全程 fs.promises（B-8）；任一 link 失败由调用方整树回退，本函数不兜底。
  */
@@ -159,7 +159,7 @@ async function fillStagingByLinks(srcDir: string, dstDir: string): Promise<void>
  * staging 填充优先硬链接农场（fillStagingByLinks）；任一 link 失败（EXDEV 跨卷 /
  * EPERM / EACCES / EMLINK 超上限）放弃整棵 staging 用 fs.promises.cp 重填——
  * 整树回退，绝不产出链接/拷贝混合树。
- * 全程 fs.promises：GB 级拷贝走线程池，主线程不得被同步 cpSync 冻结（B-8）。
+ * 全程 fs.promises：大体积拷贝走线程池，主线程不得被同步 cpSync 冻结（B-8）。
  */
 export async function ensureHarnessMaterialized(
   templateDir: string,
@@ -251,7 +251,7 @@ export class HarnessRuntime {
 
   /**
    * 惰性启动：有活桥直接返回；否则 spawn + initialize。
-   * 每次调用带一次重启额度（spec §10"重启一次仍败→运行时不可用"）；
+   * 每次调用带一次重启额度（"重启一次仍败→运行时不可用"）；
    * 并发 ensure 共享同一次启动。
    */
   async ensure(): Promise<DaniyaBridge> {

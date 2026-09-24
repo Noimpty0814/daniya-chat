@@ -1,6 +1,6 @@
 /**
- * daniya-bridge —— daniya-chat 自研 dsh 插件：独占 stdin/stdout 跑 spec §5.2
- * 的按行 JSON-RPC，把 dsh 进程内事件面桥给 Electron 主进程，并贡献
+ * daniya-bridge —— daniya-chat 自研 dsh 插件：独占 stdin/stdout 跑
+ * 按行 JSON-RPC，把 dsh 进程内事件面桥给 Electron 主进程，并贡献
  * 人设段（每轮组装重读 settings）与会话沙箱 root 设定。
  *
  * 插件形态：named exports `name`/`inject`/`Config`/`apply`，无 default export。

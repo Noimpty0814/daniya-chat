@@ -440,7 +440,7 @@ export class ChatRuntime {
     }
   }
 
-  // 降级搜索（spec §13 不补全文索引）：registry/已知标题 + 本次运行已加载过的消息
+  // 降级搜索（不补全文索引）：registry/已知标题 + 本次运行已加载过的消息
   search(q: string): SearchHit[] {
     const needle = (q ?? '').toLowerCase()
     if (!needle) return []

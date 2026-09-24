@@ -12,7 +12,7 @@
 
 ## 代价与后果
 
-- 安装包需随带约 1.1GB 物化依赖树；首启/升级走 `.stamp` 判定后台拷贝（B-8）。
+- 安装包需随带物化依赖树（经 dead-deps blocklist 裁剪后数百 MB 级）；首启/升级走 `.stamp` 判定，硬链接农场物化、失败整树回退拷贝（B-8）。
 - harness 宿主必须是真 Node，不能是 electron-as-node（ConPTY 拿不到控制台，pwsh 链静默死——B-7）。packaged 自带 `runtime/node.exe`。
 - bridge stdout 只能写协议帧，一切诊断走 stderr。
 - 会话存储是 append-only JSONL：`session.delete` 删不掉磁盘日志（dsh 持久层无删除 API）。

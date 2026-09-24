@@ -1,5 +1,5 @@
 /**
- * 历史投影 —— 把 session 事件日志投影为 spec §5.2 的 `BridgeMessage`。
+ * 历史投影 —— 把 session 事件日志投影为 `BridgeMessage`。
  *
  * 模型可见面（surface）是唯一历史来源：`foldSurface` / `session.surface.nodes`
  * 给出有序 surface 节点，`deriveEventMessage` 把每个节点事件投成 LLM `Message`。

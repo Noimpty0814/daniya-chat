@@ -27,7 +27,7 @@ const WIN_H = 640
 function createWindow(): void {
   win = new BrowserWindow({
     width: WIN_W, height: WIN_H, minWidth: 860, minHeight: 600,
-    // R28：首启也落在光标附近（B-1），窗口出生时定位避免居中闪跳
+    // 首启也落在光标附近（B-1），窗口出生时定位避免居中闪跳
     ...boundsNearCursor(WIN_W, WIN_H),
     autoHideMenuBar: true, title: '达妮娅聊天', show: false,
     icon: path.join(__dirname, '../../resources/icon.png'),
@@ -40,7 +40,7 @@ function createWindow(): void {
   else win.loadFile(path.join(__dirname, '../renderer/index.html'))
 }
 
-// R28：聊天窗在光标附近弹出（不依赖桌宠 window 事件定位），保证不超出所在显示屏工作区
+// 聊天窗在光标附近弹出（不依赖桌宠 window 事件定位），保证不超出所在显示屏工作区
 function boundsNearCursor(w: number, h: number): { x: number; y: number } {
   const cursor = screen.getCursorScreenPoint()
   const area = screen.getDisplayNearestPoint(cursor).workArea
@@ -100,7 +100,7 @@ function applyPetSettings(s: AppSettings): void {
   }
   newExt.setMapping?.(s.emotionKeys)
   newExt.onError?.((msg) => { win?.webContents.send('pet:error', msg) })
-  // R28：pet-click 事件收到就忽略（托盘左键负责弹出/隐藏）
+  // pet-click 事件收到就忽略（托盘左键负责弹出/隐藏）
   pet.start()
 }
 
@@ -116,7 +116,7 @@ app.whenReady().then(() => {
       appDir: app.getAppPath(),
       resourcesPath: process.resourcesPath,
       dshHome,
-      // B-8：升级首启物化要拷 GB 级——拷贝期间给任务栏不确定进度作可见状态
+      // B-8：升级首启要物化大体积依赖树——物化期间给任务栏不确定进度作可见状态
       onMaterialize: (active) => {
         try { win?.setProgressBar(0, active ? { mode: 'indeterminate' } : { mode: 'none' }) } catch { /* 窗口未建/已毁不阻断 */ }
       }
@@ -128,7 +128,7 @@ app.whenReady().then(() => {
       return { apiKey: getApiKey(s), baseUrl: s.baseUrl, workDir: s.file.workDir, model: s.model }
     }
   })
-  // B-8：启动即后台解析 spec（触发物化拷贝），首条消息到达时多半已就绪；进程仍惰性拉起
+  // B-8：启动即后台解析 harness spec（触发物化），首条消息到达时多半已就绪；进程仍惰性拉起
   runtime.prewarm()
   registerIpc({ registry, runtime, settingsFile, pet: () => pet, onSettingsChanged: applyPetSettings })
   createWindow()

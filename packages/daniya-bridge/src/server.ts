@@ -1,5 +1,5 @@
 /**
- * daniya-bridge 服务面 —— spec §5.2 的 9 个请求方法与 6 种通知的实现。
+ * daniya-bridge 服务面 —— 9 个请求方法与 6 种通知的实现。
  *
  * 会话注册表：`sessionId ↔ AgentHandle`，`ctx.agents` 为活 agent 权威；
  * create/resume 去重经 `sessionCreations` 在途表（同 id 并发只跑一次工厂）。

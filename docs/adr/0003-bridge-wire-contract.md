@@ -8,7 +8,7 @@ daniya-bridge 与 Electron 主进程之间的按行 JSON-RPC 协议，契约真�
 
 ## 理由
 
-- 两包无共享编译面：根项目与 daniya-bridge 各有 tsconfig，且根包**不依赖** bridge 包——`file:` devDep 会把约 1.1GB 的 dsh 依赖树拖进根 node_modules，与 slim-perf 裁剪方向冲突。type-only 相对路径 import + include 是不产生运行时依赖的最小共享机制。
+- 两包无共享编译面：根项目与 daniya-bridge 各有 tsconfig，且根包**不依赖** bridge 包——`file:` devDep 会把数百 MB 的 dsh 依赖树拖进根 node_modules，与 slim-perf 裁剪方向冲突。type-only 相对路径 import + include 是不产生运行时依赖的最小共享机制。
 - 契约文件一旦 import 任何模块，被引文件会被牵连进根项目 include 清单（TS6307 连锁报错）——零导入是这个机制成立的前提，故以文件头注固化为铁律。
 - 声明式契约（类型表 + 判别联合）比运行时 schema 便宜：协议两侧同仓同发布，帧信任契约构造；漂移的防线是"改字段即编译错"+ fixture `satisfies`/`toEqual` 对账测试，而不是线上校验。
 

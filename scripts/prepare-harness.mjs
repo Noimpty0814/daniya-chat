@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * T-5 打包暂存：把可分发 harness 物化到 build/harness-bundle/。
+ * 打包暂存：把可分发 harness 物化到 build/harness-bundle/。
  *
  * 产物布局（经 package.json extraResources 拷入 <install>/resources/harness）：
  *   build/harness-bundle/
@@ -12,7 +12,7 @@
  *     profile/
  *       package.json        profile 清单（dsh.profile.bundles + pinned deps）
  *       package-lock.json   锁文件（溯源用）
- *       cordis.patch.yml    spec §4 patch 层（运行时 loader 必读）
+ *       cordis.patch.yml    patch 层（运行时 loader 必读）
  *       node_modules/       依赖树（dead-deps blocklist 裁剪后，含 .bin shims）
  *         daniya-bridge/    file: junction 已解引用为真实目录（lib/ + package.json；
  *                         src/tests/node_modules 等 dev 产物不进包）
@@ -20,7 +20,7 @@
  * 排除：profile/cordis.yml（loader 运行时生成，随包只读模板里不该有）、
  * *.log、.dev-dsh-home、bridge 的 dev 产物。
  *
- * 复制后即断言：零符号链接残留（V-7 可搬性）、必需文件齐备、输出体积/文件数统计。
+ * 复制后即断言：零符号链接残留（可搬性）、必需文件齐备、输出体积/文件数统计。
  *
  * 用法：npm run prepare:harness   （pack 脚本已串在 electron-builder 之前）
  */
@@ -44,7 +44,7 @@ const fail = (msg) => {
 }
 
 // ── 1. 前置条件 + bridge lib 新鲜度 ──────────────────────────────────────────
-if (!fs.existsSync(path.join(harnessDir, 'launch.mjs'))) fail('harness/launch.mjs 缺失（T-1 未交付？）')
+if (!fs.existsSync(path.join(harnessDir, 'launch.mjs'))) fail('harness/launch.mjs 缺失')
 if (!fs.existsSync(path.join(profileDir, 'node_modules'))) {
   fail('harness/profile/node_modules 缺失——先 npm install --prefix harness/profile')
 }
@@ -198,7 +198,7 @@ const walk = (dir) => {
   }
 }
 walk(stagingDir)
-if (links > 0) fail(`暂存产物残留 ${links} 个符号链接（V-7）：\n  ${strays.join('\n  ')}`)
+if (links > 0) fail(`暂存产物残留 ${links} 个符号链接：\n  ${strays.join('\n  ')}`)
 if (strays.length) fail(`暂存产物混入排除项：\n  ${strays.join('\n  ')}`)
 
 log(`OK -> ${path.relative(repoRoot, stagingDir)}`)

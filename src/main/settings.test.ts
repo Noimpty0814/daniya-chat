@@ -79,7 +79,7 @@ describe('settings', () => {
   })
 })
 
-// dsh 重构一次性迁移（spec §7）：旧 search/双模型字段与 bocha-key.enc 残留清理
+// dsh 重构一次性迁移：旧 search/双模型字段与 bocha-key.enc 残留清理
 describe('settings 迁移', () => {
   it('旧 search/textModel/visionModel 字段被剥离并回写清理后的文件', () => {
     fs.writeFileSync(file, JSON.stringify({

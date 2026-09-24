@@ -1,13 +1,12 @@
 #!/usr/bin/env node
 /**
- * T-5 验收冒烟：从 packaged 布局拉起 harness，验证 initialize → {ok:true}。
+ * 验收冒烟：从 packaged 布局拉起 harness，验证 initialize → {ok:true}。
  *
  * 两条断言线：
  *  1. 结构：dist/win-unpacked/resources/harness/ 含 launch.mjs、
  *     profile/{package.json,cordis.patch.yml,node_modules}、daniya-bridge 为
  *     真实目录（含 lib/index.js）、全树零符号链接残留。
- *  2. 启动：复刻主进程 packaged 路径（process.ts ensureHarnessMaterialized +
- *     defaultHarnessSpec）——把 resources/harness cpSync 到临时可写目录
+ *  2. 启动：把 resources/harness cpSync 到临时可写目录
  *     <tmp>/app（loader 要写 profile/cordis.yml，resources 只读），再以
  *     DSH_HOME=<tmp>/home spawn `node <tmp>/app/launch.mjs`，走 stdio
  *     JSON-RPC：initialize{workdir,model} → 期望 {ok:true}；shutdown → 进程退出。
@@ -78,13 +77,15 @@ fs.existsSync(path.join(harnessDir, 'profile', 'cordis.yml'))
   ? bad('runtime cordis.yml excluded')
   : ok('runtime cordis.yml excluded')
 
-// ── 2. 模拟 packaged 首启：物化到可写目录再 spawn（同 ensureHarnessMaterialized）─
+// ── 2. 模拟 packaged 首启：物化到可写目录再 spawn ────────────────────────
+// 生产的物化是硬链接农场 + .stamp 判定（process.ts ensureHarnessMaterialized，
+// 由 process.test.ts 覆盖）；这里 cpSync 足以验证"可写副本 + stdio boot"链路。
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'daniya-pack-smoke-'))
 const appDir = path.join(tmp, 'app')
 const dshHome = path.join(tmp, 'home')
 console.log(`materializing ${harnessDir} -> ${appDir}`)
 fs.mkdirSync(tmp, { recursive: true })
-fs.cpSync(harnessDir, appDir, { recursive: true }) // 与 process.ts 相同的复制语义
+fs.cpSync(harnessDir, appDir, { recursive: true })
 
 // 与 defaultHarnessSpec 同款宿主解析：包内 runtime/node.exe 优先（B-7：
 // electron-as-node 在 ConPTY 下无控制台，windows-acl runner 宿主必须真 Node）。

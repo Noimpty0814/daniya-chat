@@ -1,5 +1,5 @@
-// dead-deps-scan 判定结果（work/maps/slim-perf/dead-deps.md）：激活面缺席 +
-// require 链不触达 + linux 删后冒烟 CLEAN。win32 boot 复核为 follow-up（见报告 §平台覆盖）。
+// dead-deps-scan 判定：激活面缺席 + require 链不触达 + linux 删后冒烟 CLEAN
+// （判定报告随 slim-perf 图收官删除，见 git 历史）。win32 boot 复核为 follow-up。
 // win32 复核优先：'@deepseek-ai/dsh-tool-pwsh'、'@deepseek-ai/dsh-pwsh-sandbox'（pwsh 家族近邻）。
 export const DEAD_DEPS = new Set([
   // ── g1 web/office/libreoffice（linux 231MB + win32 变体 330MB）──

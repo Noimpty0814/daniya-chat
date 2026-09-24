@@ -23,7 +23,7 @@ function CodeBlock({ className, children }: { className?: string; children?: Rea
   return <code className="inline-code">{children}</code>
 }
 
-/** 模型可见工具名 → 徽照搬中文文案（spec §8）；未知工具名原样显示。
+/** 模型可见工具名 → 徽照搬中文文案；未知工具名原样显示。
  *  与 harness/profile/cordis.patch.yml 挂载的工具集对齐（pwsh/web_search/web_fetch）。 */
 const TOOL_LABELS: Record<string, string> = {
   pwsh: '执行命令',

@@ -23,7 +23,7 @@ npm run dev:harness
 The launcher stays alive until stdin reaches EOF, then shuts the profile down
 with exit code 0 — stdin/stdout are reserved for the bridge JSON-RPC protocol.
 
-Verification (boots the profile, asserts spec §4 composition, exits 0/1):
+Verification (boots the profile, asserts the composition contract, exits 0/1):
 
 ```bash
 node harness/verify-profile.mjs
@@ -39,8 +39,8 @@ DSH_HOME=.dev-dsh-home node harness/profile/node_modules/@deepseek-ai/dsh/lib/bi
 
 ## Startup approach
 
-`launch.mjs` loads the app-owned profile **in place** — approach C in the
-ticket, mirroring `apps/desktop-host` in the reference repo:
+`launch.mjs` loads the app-owned profile **in place** — mirroring
+`apps/desktop-host` in the reference repo:
 
 1. `createRequire(harness/profile/package.json)` — the profile's own
    `node_modules` is the module-resolution anchor.
@@ -78,18 +78,20 @@ launcher itself. Note that `npm run` prints its own lifecycle banner to
 ```
 harness/
   launch.mjs           app-owned profile launcher (stdin/stdout = bridge protocol)
-  verify-profile.mjs   boots the profile and asserts spec §4 composition
+  verify-profile.mjs   boots the profile and asserts the composition contract
+  smoke-bridge.mjs     live bridge protocol smoke (initialize → session CRUD → prompt → shutdown)
+  repro-pwsh.mjs       B-7 repro: prompt a real pwsh tool call, capture tool events + stderr
   setup-dev-home.mjs   creates .dev-dsh-home + profiles/daniya junction
   profile/
     package.json       dsh.profile.bundles + pinned deps (all 0.1.6-alpha.2)
-    cordis.patch.yml   spec §4 layer: disable 4 rows, adjust sandbox-policy, insert 9 rows
+    cordis.patch.yml   patch layer: disable 4 rows, adjust sandbox-policy, insert 9 rows
     package-lock.json  committed lockfile
     node_modules/      (gitignored)
     cordis.yml         (gitignored — runtime-resolved tree written by the loader)
 .dev-dsh-home/         (gitignored — dev Harness home; sessions/profiles junction)
 ```
 
-## Effective composition (spec §4)
+## Effective composition
 
 Verified by `verify-profile.mjs` against the live Cordis tree:
 

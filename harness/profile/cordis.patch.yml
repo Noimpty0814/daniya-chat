@@ -1,4 +1,4 @@
-# daniya profile patch —— spec §4
+# daniya profile patch
 # 底：@deepseek-ai/dsh-sdk-minimal（完整显式树，不继承 dsh-base）
 # 行 id 已逐条核对 packages/bundle/sdk-minimal/cordis.patch.yml @0.1.6-alpha.2。
 # patch 语义（cordis-plugin-include applyEntryPatches）：
@@ -13,13 +13,13 @@
   disabled: true            # bridge 独占 stdin/stdout 协议，不再挂 sdk-server
 - id: sdk-app-startup
   name: '@deepseek-ai/dsh-sdk-app'
-  disabled: true            # 其 EOF/启动语义由 bridge 复刻（T-2）
+  disabled: true            # 其 EOF/启动语义由 bridge 复刻
 - id: session-log-deepseek
   name: '@deepseek-ai/dsh-session-log-deepseek'
   disabled: true            # 隐私：随请求上传会话日志
 - id: plugin-package-inventory-deepseek
   name: '@deepseek-ai/dsh-plugin-package-inventory-deepseek'
-  disabled: true            # 隐私：插件清单上报；V-6 待验证禁用后适配器完整性
+  disabled: true            # 隐私：插件清单上报；禁用后适配器完整性待验证
 
 # ── 调整：沙箱收紧为 workspace-write，写入围栏在工作目录内（config 整组替换）──
 - id: sandbox-policy

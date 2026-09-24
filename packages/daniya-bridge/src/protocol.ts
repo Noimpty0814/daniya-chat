@@ -1,5 +1,5 @@
 /**
- * 协议层 —— spec §5.2 的按行 JSON-RPC 2.0 线格式契约（唯一类型真相源）。
+ * 协议层 —— 按行 JSON-RPC 2.0 线格式契约（唯一类型真相源）。
  *
  * 传输本体复用 `@deepseek-ai/dsh-sdk-protocol` 的 `JsonRpcLineTransport`
  * （同一套按行分帧语义：非法行忽略、`-32601`/`-32603`、stdout 只写协议帧、
@@ -31,7 +31,7 @@ export interface BridgeTransportPeer {
 
 // ---- 请求方法（9 个） ----
 
-/** spec §5.2 的全部入向请求方法名。 */
+/** 全部入向请求方法名。 */
 export type BridgeRequestMethod =
   | 'initialize'
   | 'session.create'
@@ -119,7 +119,7 @@ export interface BridgeToolCall {
 }
 
 /**
- * spec §5.2 `BridgeMessage`：字段按 `{id, role, content, images?, toolCalls?, createdAt}`
+ * `BridgeMessage`：字段按 `{id, role, content, images?, toolCalls?, createdAt}`
  * 对齐，`files?`/`model?` 为还原 `ChatMessage` 所需的超集字段。
  */
 export interface BridgeMessage {
@@ -135,7 +135,7 @@ export interface BridgeMessage {
 
 // ---- 通知（6 种） ----
 
-/** spec §5.2 的全部出向通知方法名。 */
+/** 全部出向通知方法名。 */
 export type BridgeNotificationMethod =
   | 'stream.chunk'
   | 'stream.end'

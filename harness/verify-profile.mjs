@@ -1,9 +1,9 @@
 /**
- * T-1 profile verification: boots the daniya profile through the same
+ * Profile verification: boots the daniya profile through the same
  * `loadProfileDirectory` + `runProfile` path as `launch.mjs`, then inspects
  * the live Cordis tree and tool registry.
  *
- * Assertions (design spec §4):
+ * Assertions (composition contract):
  *   - disabled:  sdk-app-startup, sdk-jsonrpc-server, session-log-deepseek,
  *                plugin-package-inventory-deepseek
  *   - active:    daniya-bridge, attachment-local, web, web-search-deepseek,

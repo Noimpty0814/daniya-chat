@@ -1,5 +1,5 @@
 /**
- * DaniyaBridge —— daniya-bridge 协议的类型化门面（spec §5.2 + bridge-contract 票）。
+ * DaniyaBridge —— daniya-bridge 协议的类型化门面。
  *
  * `Bridge` 之上按 `packages/daniya-bridge/src/protocol.ts` 的唯一契约收敛：
  * - `request<M>` 类型化重载在前，返回值按 `BridgeResultMap[M]` 自动推导；

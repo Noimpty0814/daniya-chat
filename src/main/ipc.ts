@@ -8,7 +8,7 @@ import { ChatRuntime, type HarnessLike } from './chat-runtime'
 import type { PetCoordinator } from './pet/coordinator'
 
 /**
- * IPC 面（spec §5.3 映射）：通道名与载荷语义对渲染层保持不变。
+ * IPC 面：通道名与载荷语义对渲染层保持不变。
  * 本文件是纯通道 adapter——全部 ipcMain.handle 注册在此；
  * chat:* 八条一行委托给 ChatRuntime（turn 状态机全部语义见 chat-runtime.ts），
  * settings/file/screen/pet 透传 handler 原样保留。
