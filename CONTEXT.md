@@ -12,7 +12,7 @@
 ## 会话与数据
 
 - **会话登记簿 / ConversationRegistry**：主进程自持的 `userData/conversations.json`——conversationId↔sessionId 映射、显示序、标题覆盖。dsh 侧 session 是 append-only JSONL 事件日志、无删除 API（`session.delete` 只卸活 agent）。
-- **settings.json**：userData 下的设置文件；API key 以 DPAPI 密文存 `apiKeyEncrypted`，运行时解密后经 env 注入子进程，不明文落盘。安装版与开发版 userData 不同：安装版随 productName 是 `%APPDATA%\达妮娅聊天`，开发版是 `%APPDATA%\daniya-chat`。
+- **settings.json**：userData 下的设置文件；API key 以 DPAPI 密文存 `apiKeyEncrypted`，运行时解密后经 env 注入子进程，不明文落盘。userData 由 `app.setPath` 钉死为 `%APPDATA%\daniya-chat`——安装版与开发版共用，不随 productName 走。
 - **人设 / persona**：`src/main/settings.ts` 的 `DEFAULT_PERSONA` 为默认 `systemPrompt`（用户可在设置页改）；bridge 每轮重读该字段并追加 EMOTION_CONTRACT + FILE_CONTRACT 注入会话。
 - **工作目录 / workspace-write 沙箱**：设置页 `file.workDir` 是写入围栏；模型唯一直写通道 `pwsh` 越界即拒。
 

@@ -8,6 +8,10 @@ import { ConversationRegistry } from './harness/conversations'
 import { HarnessRuntime, defaultHarnessSpec } from './harness/process'
 import type { PetSettings } from '../shared/types'
 
+// userData 钉死在 %APPDATA%\daniya-chat：安装版与开发版共用同一数据目录
+// （不设则安装版随 productName 落到 %APPDATA%\达妮娅聊天）
+app.setPath('userData', path.join(app.getPath('appData'), 'daniya-chat'))
+
 let win: BrowserWindow | null = null
 let tray: Tray | null = null
 let quitting = false

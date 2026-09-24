@@ -51,7 +51,7 @@ npm run pack         # 打包 Windows 安装包（输出到 dist/）
 
 ## 配置
 
-- **DeepSeek API Key**：应用内「设置」页填写。密钥经系统 DPAPI 加密后存于 userData 的 `settings.json`（安装版 `%APPDATA%\达妮娅聊天`，开发版 `%APPDATA%\daniya-chat`），不明文落盘；运行时以 env 注入 harness 子进程（`DEEPSEEK_API_KEY`/`DEEPSEEK_BASE_URL`）
+- **DeepSeek API Key**：应用内「设置」页填写。密钥经系统 DPAPI 加密后存于 `%APPDATA%\daniya-chat\settings.json`，不明文落盘；运行时以 env 注入 harness 子进程（`DEEPSEEK_API_KEY`/`DEEPSEEK_BASE_URL`）
 - **模型**：设置页单一模型字段，文本与图像输入共用
 - **联网搜索**：无需配置——`web_search` 由模型按需自主调用，复用同一个 DeepSeek Key
 - **桌宠联动**（可选）：集成说明见 `resources/pet-helper.ps1`，联动开关在设置页
@@ -79,7 +79,7 @@ docs/adr/           # 架构决策记录（dsh 迁移、提案契约等）
 ## 已知事项
 
 - 仅支持 Windows（桌宠联动依赖 PowerShell/全局钩子）
-- 安装版与开发版的 userData 目录不同（`%APPDATA%\达妮娅聊天` vs `%APPDATA%\daniya-chat`），密钥各自配置
+- 安装版与开发版共用 `%APPDATA%\daniya-chat`（userData 钉死，不随 productName 走），密钥无需重配
 - 旧版本地会话文件不迁移（dsh 会话是事件日志，不可逆平迁）；旧 `conversations*` 文件保留不读，可自行删除
 
 ## License
