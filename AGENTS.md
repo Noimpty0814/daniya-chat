@@ -18,4 +18,4 @@ Electron desktop AI chat app (React renderer + main process + `packages/daniya-b
 
 ## Local verification
 
-`npm run typecheck` and `npm run test` before marking work done; `npm run build` when main/preload/renderer wiring changed.
+`npm run typecheck` and `npm run test` before marking work done; `npm run build` when main/preload/renderer wiring changed. `.github/workflows/ci.yml` runs the same gate on PRs plus bridge build/test and the harness boot smoke (`verify-profile.mjs` + `smoke-bridge.mjs`).

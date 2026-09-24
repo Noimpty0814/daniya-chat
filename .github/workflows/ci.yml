@@ -1,0 +1,66 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # 测试不需要 electron 二进制，跳过 postinstall 下载
+  ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            packages/daniya-bridge/package-lock.json
+            harness/profile/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run test
+
+  bridge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: packages/daniya-bridge/package-lock.json
+      - run: npm ci --prefix packages/daniya-bridge
+      - run: npm run build --prefix packages/daniya-bridge
+      - run: npm test --prefix packages/daniya-bridge
+
+  # 起真实 dsh profile 验组合契约 + 协议冒烟（无 key 路径）。
+  # harness/profile 的 file: 依赖要求 daniya-bridge 先构建出 lib/。
+  harness-boot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            packages/daniya-bridge/package-lock.json
+            harness/profile/package-lock.json
+      - run: npm ci --prefix packages/daniya-bridge
+      - run: npm run build --prefix packages/daniya-bridge
+      - run: npm ci --prefix harness/profile
+      - run: node harness/verify-profile.mjs
+      - run: node harness/smoke-bridge.mjs
