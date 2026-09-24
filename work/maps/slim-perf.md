@@ -22,6 +22,7 @@
 - 验证脚本缺口：`verify-profile.mjs` 断言 Windows 写死（persistent-pwsh 须 ACTIVE、bash 须不 ACTIVE、工具集含 pwsh）→ Linux 上正确行为被判失败，需平台化断言后才可作裁剪兜底
 - 死依赖判定已交付（feat/dead-deps-scan，`work/maps/slim-perf/dead-deps.md`）：linux 树 475 包实测 **351 dead / 121 alive / 3 unknown**，7 组累积删后 verify 恰 4 平台失败 + smoke 11 PASS；blocklist 353 项（win32 可裁 ~548MB/643MB）；unknown = sharp-wasm32/emnapi/node-addon-api；win32 boot 复核为 follow-up。另实测 ACTIVE 条目为 **36**（非 35，`include` 行计入口径差异）
 - 实现面全部落地（session devin-local）：verify-linux（PR #10）→ materialize-hardlink（PR #11）→ slim-installer（PR #12）。linux 侧机械验收达成：裁剪后暂存树 76.7MiB 上 verify-profile exit 0。**剩余均为 Windows 侧**：基线三段测量 + WR 复核，全部收编在 `windows-checklist.md`
+- Windows 验收回填（eefe7fd，2026-09-24，main@93bd170）：**A–G 全项 PASS**。基线三段已建立——installer 149.2MB / 安装树 162.0MB/4058f / 物化表观 162.0MB（4058/4059 文件共享 inode，边际磁盘 ~KB）；物化窗口 copy 4.92s → hardlink **0.78s**；启动→窗口 0.70s、prompt→首 chunk 514ms（冷态分解：harness init 613–756ms + LLM TTFT ~0.5s ≈ 1.1–1.3s）；idle≥5min ≈**453MB WS**（Electron 四进程 378 + harness node.exe 75，CPU 近零）。353 项 blocklist win32 无误伤（chat/pwsh/sharp 实测）；link count 2/2/1、无 AV 告警；profile 源树 551.4MiB/26517f → 暂存 164.3MiB/4062f。验收暴露真 bug：`pkgKeyOf` 用 path.sep join 致 win32 @scoped 键永不命中、~200 包漏剪，已修（e3dfd4d，pruned 351/353，缺席 2 项为 linux-only 正常漂移）——暂存残留断言按设计立功。NSIS 压缩差值同时得答：149.2MB 安装包 vs 162MB 树（~8%）
 
 ## Frontier
 - [x] spawn spec `verify-linux` — 已落地（PR #10）：verify-profile.mjs 断言平台化（win32→pwsh 集 / 非 win32→bash 集对称断言），verify/smoke 均支持可选 harness-root 参数（可对 `build/harness-bundle` 跑同一门禁）；Linux 实测 exit 0。win32 腿复跑在 windows-checklist.md §E
@@ -29,13 +30,14 @@
 - [x] 首启物化拷贝是否可省 — research 已验收合并（PR #4）：拷贝可省/可缩水，推荐硬链接农场 → `work/maps/slim-perf/first-boot-copy.md`
 - [x] spawn spec `materialize-hardlink` — 已落地（PR #11）：`fillStagingByLinks` 链接农场（mkdir+link、.stamp/cordis.yml 真实拷贝、任一 link 失败整树回退 cp），process.test.ts 21/21 含 inode 共享/写穿/EXDEV 回退用例；win32 NTFS 语义复核在 windows-checklist.md §G
 - [x] Windows 基线 checklist — 已交付 `work/maps/slim-perf/windows-checklist.md`（A 体积 / B 首启物化 / C 冷启动分解 / D 常驻 / E verify win32 腿 / F slim win32 复核 / G 硬链接复核，含回填格式）；执行属用户 Windows 侧
-- [x] spawn spec slim-installer — 已落地（PR #12）：`scripts/dead-deps.mjs` 353 项名单 + prepare-harness 顶层包过滤 + 漏剪断言 + `verify:bundle` 门禁；linux 暂存树 491MB→**76.7MiB / 4047 文件**，bundle 上 verify exit 0；win32 boot 复核在 checklist §F
+- [x] spawn spec slim-installer — 已落地（PR #12）：`scripts/dead-deps.mjs` 353 项名单 + prepare-harness 顶层包过滤 + 漏剪断言 + `verify:bundle` 门禁；linux 暂存树 491MB→**76.7MiB / 4047 文件**，bundle 上 verify exit 0；win32 boot 复核在 checklist §F（已 PASS）
+- [ ] 阈值裁决与 map 收官 — 三段基线已建立（见 Decisions），约定阈值待用户拍板回填；零冗余硬目标已达成（win32 实测无误伤）。收官后按生命周期删本图与 windows-checklist.md
 
 ## Fog
-- 常驻内存/CPU 的可疑来源（harness 常驻进程、pet-helper 轮询、渲染层）——等基线
-- 首 token 延迟是否进目标——等冷启动基线分解出 boot 段 vs 请求段占比
-- node.exe 更瘦替代（SEA/裁剪构建）——大概率不值，先记
-- NSIS 压缩后安装包 vs 物化树的差值——等 Windows 基线
+- pet-helper 常驻画像未测——验收时 exePath 指向不在场路径未拉起；主占用已定位为 Electron 378MB + harness node 75MB
+- 首 token 延迟是否进目标——冷态分解已出（harness init ~0.6–0.75s + TTFT ~0.5s），数据齐，待裁决
+- node.exe 更瘦替代（SEA/裁剪构建）——87.4MB 独占安装树 54%，已成剩余最大体积杠杆，值不值待裁决
+- 真实安装跨卷（WR-2）未实地触发——仅有 C:→D: fs.link EXDEV 语义证据 + process.test.ts 回退用例；C② 系桥级测量非 UI 掐表
 
 ## Out of scope
 - UI 渲染层优化（~950 行 React，非瓶颈）——除非基线打脸
