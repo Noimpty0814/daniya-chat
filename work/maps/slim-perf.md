@@ -24,6 +24,7 @@
 - 实现面全部落地（session devin-local）：verify-linux（PR #10）→ materialize-hardlink（PR #11）→ slim-installer（PR #12）。linux 侧机械验收达成：裁剪后暂存树 76.7MiB 上 verify-profile exit 0。**剩余均为 Windows 侧**：基线三段测量 + WR 复核，全部收编在 `windows-checklist.md`
 - Windows 验收回填（eefe7fd，2026-09-24，main@93bd170）：**A–G 全项 PASS**。基线三段已建立——installer 149.2MB / 安装树 162.0MB/4058f / 物化表观 162.0MB（4058/4059 文件共享 inode，边际磁盘 ~KB）；物化窗口 copy 4.92s → hardlink **0.78s**；启动→窗口 0.70s、prompt→首 chunk 514ms（冷态分解：harness init 613–756ms + LLM TTFT ~0.5s ≈ 1.1–1.3s）；idle≥5min ≈**453MB WS**（Electron 四进程 378 + harness node.exe 75，CPU 近零）。353 项 blocklist win32 无误伤（chat/pwsh/sharp 实测）；link count 2/2/1、无 AV 告警；profile 源树 551.4MiB/26517f → 暂存 164.3MiB/4062f。验收暴露真 bug：`pkgKeyOf` 用 path.sep join 致 win32 @scoped 键永不命中、~200 包漏剪，已修（e3dfd4d，pruned 351/353，缺席 2 项为 linux-only 正常漂移）——暂存残留断言按设计立功。NSIS 压缩差值同时得答：149.2MB 安装包 vs 162MB 树（~8%）
 - node.exe 瘦身裁决（2026-09-24 align）：**不做**。87.4MB 构成——V8+内建 ~45-50MB、full-icu ~26-30MB、OpenSSL ~6MB、其余 ~8MB；唯一 >10MB 杠杆是 ICU 裁剪（small-icu 磁盘 -27MB 但 zh Intl/排序退化，icudt zh+en filter -15MB），安装包端收益对折 ~12-15MB，代价是永久自建 MSVC Node 发布链+安全补丁跟进；UPX 只省磁盘且破 WR-6 无告警记录，SEA 实为 node.exe+blob 更大，换 runtime 撞 B-7/native ABI——ROI 不值，关账
+- 首 token 裁决（2026-09-24 align）：**不进目标**——冷态分解 init ~0.6–0.75s + TTFT ~0.5s 已在体感可接受域；性能面收口于 A/B/D 三段（物化 0.78s / 启动→窗口 0.70s / idle 453MB WS / 安装包 149.2MB），基线即交付，阈值不另立数字
 
 ## Frontier
 - [x] spawn spec `verify-linux` — 已落地（PR #10）：verify-profile.mjs 断言平台化（win32→pwsh 集 / 非 win32→bash 集对称断言），verify/smoke 均支持可选 harness-root 参数（可对 `build/harness-bundle` 跑同一门禁）；Linux 实测 exit 0。win32 腿复跑在 windows-checklist.md §E
@@ -36,7 +37,7 @@
 
 ## Fog
 - pet-helper 常驻画像未测——验收时 exePath 指向不在场路径未拉起；主占用已定位为 Electron 378MB + harness node 75MB
-- 首 token 延迟是否进目标——冷态分解已出（harness init ~0.6–0.75s + TTFT ~0.5s），数据齐，待裁决
+- ~~首 token 延迟是否进目标~~ —— 已裁决不进目标，见 Decisions
 - ~~node.exe 更瘦替代~~ —— 已裁决不做，见 Decisions
 - 真实安装跨卷（WR-2）未实地触发——仅有 C:→D: fs.link EXDEV 语义证据 + process.test.ts 回退用例；C② 系桥级测量非 UI 掐表
 
