@@ -79,7 +79,8 @@ const skipEverywhere = new Set(['.dev-dsh-home', 'cordis.yml'])
 // 只判顶层包目录——嵌套路径的首段仍属宿主包，嵌套 node_modules 不被误裁。
 const pkgKeyOf = (rel) => {
   const segs = rel.split(path.sep)
-  return segs[0].startsWith('@') ? segs.slice(0, 2).join(path.sep) : segs[0]
+  // DEAD_DEPS 键恒定正斜杠（@scope/name）；win32 的 rel 是反斜杠，必须按 '/' 归位
+  return segs[0].startsWith('@') ? segs.slice(0, 2).join('/') : segs[0]
 }
 const prunedKeys = new Set()
 // 名单漂移容忍：blocklist 项在源树缺席只 warn 不 fail（lockfile 传递漂移正常）。
