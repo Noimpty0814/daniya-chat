@@ -90,3 +90,41 @@ E: verify win32 = PASS/FAIL（附 failures）
 F: chat=__, pwsh_tool=__, attach=__
 G: hardlink_ok=__, av_noise=__
 ```
+
+## 实测回填（2026-09-24，Windows 11 真机，main@93bd170）
+
+```
+A: installer=149.2MB, harness_tree=162.0MB/4058files, materialized=162.0MB/4059files(表观)
+   裁剪前后：源 profile/node_modules 551.4MiB/26517f → 暂存 bundle 164.3MiB/4062f
+   （其中 runtime/node.exe 87.4MiB、node_modules 76.5MiB/4056f）→ 安装树 162.0MiB/4058f
+   物化树表观 162.0MiB，但 4058/4059 文件与安装树共享 inode——边际磁盘 ≈ .stamp+cordis.yml 两个真实拷贝（~KB 级）
+B: materialize_s=4.92（copy 基线：同树同卷 fs.promises.cp 实测）→ 0.78（hardlink 农场，staging 窗口 80ms 轮询）
+   启动→物化完成=1.48s；WR-2 跨卷：C:→D: fs.link 实测如期 EXDEV（本机同卷未走回退，回退路径由 process.test.ts EXDEV 用例覆盖）
+C: launch_to_window=0.70s, window_to_token≈0.5s（harness 已热：prompt→首 chunk 实测 514ms）
+   冷态分解：harness spawn→initialize 应答 613–756ms + LLM TTFT ~0.5s ≈ 1.1–1.3s
+   （桥级直测；窗口可见后 renderer 的会话加载已触发 harness 预热，用户体感取热路径）
+D: idle ≥5min（10:52:53 启动，10:58:47 快照，无会话活动）
+     达妮娅聊天.exe ×4（main/GPU/renderer/utility）：146+108+75+49=378MB WS，累计 CPU≈4.9s
+     node.exe（harness，物化树 runtime/）：75MB WS，CPU 0.8s
+     无可归属本 app 的 pwsh/powershell 常驻（表中 powershell 均早于 app 或为测量进程）；
+     pet-helper/Bongo Cat 未拉起（settings.pet.exePath 指向 E:\迅雷下载\...，当前不在场）
+   合计 ≈453MB WS，idle CPU 近零
+E: verify win32 = PASS ×3 处——仓库 harness/profile、build/harness-bundle、物化树 %APPDATA%\daniya-chat\harness\app
+   均 exit 0：pwsh 对 ACTIVE / bash 对 NO_FIBER / 工具集 [pwsh,web_fetch,web_search] / sandbox workspace-write / 36 ACTIVE
+F: chat=PASS（initialize 613ms，{EMO:sleepy} 人设生效，流式回复正常）
+   pwsh_tool=PASS（模型自发 tool.call 'pwsh' Get-Location → tool.result ok=true，persistent-pwsh 沙箱链完好；
+                  dsh-tool-pwsh/dsh-pwsh-sandbox 裁剪无误伤——真实装载点是 dsh-tool-pwsh-persistent/dsh-terminal-bash）
+   attach=PASS（sharp-win32-x64 在场且可独立加载；合法 PNG 准入成功，模型描述了缩略图内容。
+               注：首次测试因手写 PNG 不合法被拒 "Unsupported or malformed image data"——拒绝行为正确，非误伤）
+   verify-profile 物化树复跑 = PASS
+G: hardlink_ok=PASS——runtime/node.exe link count=2、profile/node_modules/@deepseek-ai/dsh/package.json=2、.stamp=1（独立拷贝）
+   av_noise=无（Defender/杀软全程无告警，物化 0.78s 未被拦截减速）
+
+附带修复（验收暴露的真 bug）：scripts/prepare-harness.mjs `pkgKeyOf` 用 path.sep join
+@scope 键——win32 下产出反斜杠键永不命中 DEAD_DEPS（正斜杠），致全部 @scoped
+blocklist 包漏剪；暂存断言正确捕获（残留 ~200 项）。已修为恒定 '/' join，
+修后 pruned 351/353（缺席 2 项为 linux-only 包的正常漂移）。
+```
+
+结论：353 项 blocklist 在 win32 无误伤；硬链接农场 NTFS 语义成立；基线三段已建立。
+剩余差距：真实安装跨卷（WR-2）未实地触发（仅有 EXDEV 语义证据 + 单测）；C② 为桥级测量非 UI 掐表。
